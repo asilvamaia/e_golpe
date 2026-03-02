@@ -1,0 +1,21 @@
+app = "guardian-bot-idoso"
+primary_region = "iad"
+
+[build]
+
+# [MUDANÇA 1] Define o script start.sh como comando principal
+[processes]
+  app = "bash start.sh" 
+
+# [MUDANÇA 2] Reativamos o serviço HTTP para o Site aparecer na internet
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false # Importante: não deixa desligar
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[mounts]
+  source = "guardian_storage"
+  destination = "/data"

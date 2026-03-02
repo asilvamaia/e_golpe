@@ -1,0 +1,104 @@
+body {
+    width: 350px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0e1117;
+    color: #fafafa;
+    margin: 0;
+    padding: 0;
+}
+
+.header {
+    background-color: #1a1c23;
+    padding: 15px;
+    text-align: center;
+    border-bottom: 2px solid #3366ff;
+}
+
+.header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #3366ff;
+}
+
+.container {
+    padding: 20px;
+}
+
+.url-display {
+    background-color: #262730;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    word-break: break-all;
+    border: 1px solid #3a3b42;
+    margin-bottom: 15px;
+    color: #a0aab5;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #3366ff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #254bce;
+}
+
+button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#loading {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3366ff;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#result {
+    margin-top: 20px;
+    background-color: #1a1c23;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #3366ff;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#verdict {
+    margin-top: 0;
+    font-size: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+}
+
+.verdict-seguro { color: #00cc66; }
+.verdict-alerta { color: #ffaa00; }
+.verdict-golpe { color: #ff3333; }
+.verdict-erro { color: #aaaaaa; }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Guardian Bot</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <img src="icon48.png" alt="Logo" id="logo" style="width: 24px; display: none;">
+        <h2>Guardian Bot</h2>
+    </div>
+    
+    <div class="container">
+        <p id="current-url" class="url-display">Carregando URL...</p>
+        
+        <button id="analyze-btn">🛡️ Analisar Página Atual</button>
+        
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>A IA está analisando a página...</p>
+        </div>
+
+        <div id="result" class="hidden">
+            <h3 id="verdict"></h3>
+            <div id="analysis-text"></div>
+        </div>
+    </div>
+
+    <!-- Script principal -->
+    <script src="popup.js"></script>
+</body>
+</html>

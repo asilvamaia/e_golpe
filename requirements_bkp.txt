@@ -1,0 +1,11 @@
+pyTelegramBotAPI
+python-dotenv
+requests
+google-generativeai
+beautifulsoup4
+python-whois
+colorama
+streamlit
+python-telegram-bot==20.6
+pandas 
+matplotlib

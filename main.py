@@ -1,0 +1,88 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import whois
+from email_validator import validate_email, EmailNotValidError
+import os
+from dotenv import load_dotenv
+import asyncio
+from core import checar_cache_analise, orquestrar_coleta_dados_url, analisar_com_ia, extrair_url
+
+# Carrega variáveis de ambiente
+load_dotenv()
+
+app = FastAPI(title="Guardian Bot API", description="API para detecção de fraudes e verificação de segurança.")
+
+# Modelos de dados para entrada (Request Body)
+class AnalyzeRequest(BaseModel):
+    text: str
+    
+class EmailRequest(BaseModel):
+    email: str
+
+class DomainRequest(BaseModel):
+    domain: str
+
+@app.get("/")
+def home():
+    return {"message": "Guardian Bot está ativo!", "status": "online"}
+
+@app.post("/check-email")
+def check_email(data: EmailRequest):
+    """
+    Verifica se o formato do e-mail é válido e se o domínio aceita e-mails.
+    """
+    try:
+        # check_deliverability=True verifica se o domínio MX existe
+        valid = validate_email(data.email, check_deliverability=True)
+        return {
+            "status": "valid",
+            "email_normalized": valid.normalized,
+            "domain": valid.domain
+        }
+    except EmailNotValidError as e:
+        return {"status": "invalid", "reason": str(e)}
+
+@app.post("/check-domain")
+def check_domain(data: DomainRequest):
+    """
+    Realiza uma consulta WHOIS básica no domínio.
+    """
+    try:
+        domain_info = whois.whois(data.domain)
+        return {
+            "domain": data.domain,
+            "registrar": domain_info.registrar,
+            "creation_date": domain_info.creation_date,
+            "expiration_date": domain_info.expiration_date
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao consultar domínio: {str(e)}")
+
+@app.post("/api/v1/analyze")
+async def analyze_content(data: AnalyzeRequest):
+    """
+    Analisa um link ou texto recebido usando a IA e as APIs de segurança.
+    """
+    texto = data.text
+    url = extrair_url(texto)
+    meta = {"origem": "API"}
+    
+    if url:
+        try:
+            cache_analise, _ = checar_cache_analise(url)
+            if cache_analise:
+                return {"status": "success", "cached": True, "analysis": cache_analise}
+            
+            dados = await orquestrar_coleta_dados_url(url)
+            analise = await analisar_com_ia(url, dados, origem="api", metadados=meta)
+            
+            return {"status": "success", "cached": False, "analysis": analise}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Layer interno falhou: {e}")
+    else:
+        # Se for só texto
+        raise HTTPException(status_code=400, detail="Apenas URLs são suportadas nesta versão da API.")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,16 @@
+streamlit
+requests
+python-dotenv
+beautifulsoup4
+python-whois
+google-genai
+url-normalize
+colorama
+pandas
+sqlalchemy
+bcrypt
+httpx
+fastapi
+uvicorn
+pydantic
+email-validator
