@@ -28,3 +28,6 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Auto-inicializa o banco ao importar o módulo
+init_db()
