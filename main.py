@@ -10,7 +10,18 @@ from core import checar_cache_analise, orquestrar_coleta_dados_url, analisar_com
 # Carrega variáveis de ambiente
 load_dotenv()
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Guardian Bot API", description="API para detecção de fraudes e verificação de segurança.")
+
+# Adiciona o middleware CORS para permitir que a extensão de navegador consiga se conectar à API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite de qualquer origem
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite POST, GET, OPTIONS, etc
+    allow_headers=["*"],
+)
 
 # Modelos de dados para entrada (Request Body)
 class AnalyzeRequest(BaseModel):
