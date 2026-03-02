@@ -315,7 +315,7 @@ def atualizar_bases_ameacas():
             return
             
         if not CACHE_AMEACAS:
-            registros = db.query(AmeacaCache.domain).all()
+            registros = db.query(AmeacaCache.url).all()
             if registros:
                 CACHE_AMEACAS = set(r[0] for r in registros)
                 registrar_log(f"Cache de ameaças carregado do DB: {len(CACHE_AMEACAS)} URLs", "INFO")
@@ -369,7 +369,7 @@ def checar_bases_phishing(url):
     if not CACHE_AMEACAS:
         db = SessionLocal()
         try:
-            registros = db.query(AmeacaCache.domain).all()
+            registros = db.query(AmeacaCache.url).all()
             if registros:
                 CACHE_AMEACAS = set(r[0] for r in registros)
         finally:

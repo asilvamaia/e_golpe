@@ -417,7 +417,7 @@ def checar_bases_phishing(url):
     if not CACHE_AMEACAS:
         db = SessionLocal()
         try:
-            registros = db.query(AmeacaCache.domain).all()
+            registros = db.query(AmeacaCache.url).all()
             if registros:
                 CACHE_AMEACAS = set(r[0] for r in registros)
         finally:
