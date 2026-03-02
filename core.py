@@ -410,21 +410,26 @@ def atualizar_bases_ameacas():
         finally:
             db.close()
 
-threading.Thread(target=atualizar_bases_ameacas, daemon=True).start()
+# Background thread is disabled by default on startup to prevent Memory Exhaustion (OOM) on free cloud tiers.
+# threading.Thread(target=atualizar_bases_ameacas, daemon=True).start()
 
 def checar_bases_phishing(url):
-    global CACHE_AMEACAS
-    if not CACHE_AMEACAS:
-        db = SessionLocal()
-        try:
-            registros = db.query(AmeacaCache.url).all()
-            if registros:
-                CACHE_AMEACAS = set(r[0] for r in registros)
-        finally:
-            db.close()
-            
     url_norm = normalizar_url_db(url)
-    if url_norm in CACHE_AMEACAS: return "DETECTADO: PHISHING CONFIRMADO (Base Global)"
+    
+    # Check in-memory first (if manually loaded or small)
+    global CACHE_AMEACAS
+    if CACHE_AMEACAS and url_norm in CACHE_AMEACAS:
+        return "DETECTADO: PHISHING CONFIRMADO (Base Global)"
+        
+    # Query database directly to preserve RAM instead of loading all entries to memory
+    db = SessionLocal()
+    try:
+        match = db.query(AmeacaCache).filter(AmeacaCache.url == url_norm).first()
+        if match:
+             return "DETECTADO: PHISHING CONFIRMADO (Base Global)"
+    finally:
+        db.close()
+        
     return "Limpo (Não listado)"
 
 checar_phishtank = checar_bases_phishing
