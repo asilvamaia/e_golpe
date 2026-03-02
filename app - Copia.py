@@ -1,0 +1,461 @@
+import streamlit as st
+import streamlit.components.v1 as components 
+import time
+import pandas as pd
+import json
+import os
+import re
+from datetime import datetime
+from core import (
+    extrair_url, 
+    validar_seguranca_url, 
+    limpar_dominio, 
+    carregar_listas_seguranca,
+    checar_google_safebrowsing,
+    checar_virustotal,
+    checar_bases_phishing,
+    checar_urlscan,
+    checar_idade_dominio,
+    checar_ssl,
+    checar_typosquatting,
+    analisar_conteudo_site,
+    analisar_com_ia,        
+    analisar_texto_ia,
+    salvar_feedback,
+    desencurtar_link,
+    registrar_log,
+    DATASET_FILE,
+    FEEDBACK_FILE,
+    WHITELIST_FILE,
+    BLACKLIST_FILE,
+    LOG_FILE
+)
+
+ICON_URL = "https://img.icons8.com/?size=100&id=Q7x2cp7xuVAG&format=png&color=000000"
+
+st.set_page_config(
+    page_title="É Golpe?",
+    page_icon=ICON_URL,
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+st.markdown("""
+    <style>
+    :root { --ios-bg: #F2F2F7; --ios-card: #FFFFFF; --ios-text: #000000; --ios-button: #007AFF; }
+    @media (prefers-color-scheme: dark) { :root { --ios-bg: #000000; --ios-card: #1C1C1E; --ios-text: #FFFFFF; --ios-button: #0A84FF; } }
+    .stApp { background-color: var(--ios-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    
+    /* Layout Limpo */
+    #MainMenu, footer, header {visibility: hidden;}
+    .block-container { padding-top: 2rem; padding-bottom: 5rem; }
+    
+    /* Inputs */
+    div[data-baseweb="input"] { background-color: var(--ios-card) !important; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); }
+    
+    /* Botões */
+    div.stButton > button[kind="primary"] { background-color: var(--ios-button) !important; color: white !important; border-radius: 12px; height: 50px; font-weight: 600; font-size: 16px; border: none; width: 100%; }
+    div.stButton > button[kind="secondary"] { background-color: transparent !important; border: 1px solid #ddd !important; color: #333 !important; border-radius: 12px; height: 45px; }
+    @media (prefers-color-scheme: dark) { div.stButton > button[kind="secondary"] { color: white !important; border-color: #444 !important; } }
+    
+    /* Componentes Customizados */
+    .status-card { background-color: var(--ios-card); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; border: 1px solid rgba(0,0,0,0.1); color: var(--ios-text); }
+    .result-box { padding: 25px; border-radius: 16px; text-align: left; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); background-color: var(--ios-card); color: var(--ios-text); }
+    .context-box { background-color: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 0.9em; color: #666; border: 1px dashed #ccc; }
+    .verdict-header { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+    .verdict-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
+    .risk-score { font-size: 1.1rem; color: #666; font-weight: 500; }
+    
+    /* Cores de Risco */
+    .text-safe { color: #28a745; } .text-warning { color: #ffc107; } .text-danger { color: #dc3545; }
+    
+    /* Esconde Instruções Padrão */
+    [data-testid="InputInstructions"] { display: none !important; }
+    div[data-testid="InputInstructions"] { display: none !important; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- FUNÇÕES DE UTILS E SEGURANÇA ---
+def parse_ia(txt):
+    """Extrai veredito e score do texto Markdown gerado pelo Core"""
+    ver = re.search(r'\*\*Veredito:?\*\*\s*(\[?.*?\]?)', txt, re.I)
+    if ver:
+        raw_ver = ver.group(1).replace('[','').replace(']','').strip().upper()
+        raw_ver = re.sub(r':\w+', '', raw_ver)
+    else:
+        raw_ver = "ANÁLISE"
+        
+    score_match = re.search(r'(?:Score|Nível de Segurança).*?(\d{1,3})', txt, re.I)
+    score_val = score_match.group(1) if score_match else "??"
+    
+    if "SEGURO" in raw_ver or "CONFIÁVEL" in raw_ver: css="text-safe"; i="✅"
+    elif "PERIGO" in raw_ver or "GOLPE" in raw_ver or "FAKE" in raw_ver or "ALERTA" in raw_ver or "OFFLINE" in raw_ver: css="text-danger"; i="🚫"
+    else: css="text-warning"; i="⚠️"
+    
+    return raw_ver, score_val, css, i
+
+def check_rate_limit(seconds=3):
+    now = time.time()
+    last = st.session_state.get('ultima_requisicao', 0)
+    if now - last < seconds:
+        return False, f"⏳ Aguarde {int(seconds - (now - last))}s..."
+    st.session_state['ultima_requisicao'] = now
+    return True, ""
+
+def validar_seguranca_input(texto):
+    t = texto.lower()
+    block = ["ignore previous", "system prompt", "you are a", "act as", "mode developer", "desconsidere as instruções"]
+    for b in block: 
+        if b in t: return False, "Comando inválido detectado."
+    if len(texto) > 4000: return False, "Texto muito longo."
+    return True, ""
+
+@st.dialog("📲 Instalar Aplicativo")
+def mostrar_instrucoes_instalacao():
+    st.markdown("""
+    <div style="text-align: left; font-size: 16px;">
+        <p>Adicione à tela inicial para acesso rápido:</p>
+        <hr><strong>🍎 iOS:</strong> Compartilhar ⬆️ > <b>"Adicionar à Tela de Início"</b>.
+        <hr><strong>🤖 Android:</strong> Menu (⋮) > <b>"Adicionar à tela inicial"</b>.
+    </div>""", unsafe_allow_html=True)
+
+# --- SESSION STATE ---
+if 'texto_para_analisar' not in st.session_state: st.session_state['texto_para_analisar'] = ""
+if 'ultima_requisicao' not in st.session_state: st.session_state['ultima_requisicao'] = 0
+if 'ultimo_resultado_ia' not in st.session_state: st.session_state['ultimo_resultado_ia'] = None
+if 'dados_tecnicos_cache' not in st.session_state: st.session_state['dados_tecnicos_cache'] = None
+if 'feedback_enviado' not in st.session_state: st.session_state['feedback_enviado'] = False
+if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
+if 'admin_autenticado' not in st.session_state: st.session_state['admin_autenticado'] = False
+if 'processing' not in st.session_state: st.session_state['processing'] = False
+
+# --- LÓGICA DE LOGIN ADMIN ---
+MAGIC_WORD = "Ck90t&c@@"
+ADMIN_PASS = "Ale281911G@"
+
+def submeter_consulta():
+    nova_entrada = st.session_state.widget_input
+    
+    if nova_entrada.strip() == MAGIC_WORD:
+        st.session_state['modo_admin'] = True
+        st.session_state.widget_input = ""
+        return
+
+    safe, msg_erro = validar_seguranca_input(nova_entrada)
+    if not safe:
+        st.toast(msg_erro, icon="❌")
+        return
+
+    ok, msg_rate = check_rate_limit()
+    if not ok:
+        st.toast(msg_rate, icon="⏳")
+        return
+    
+    st.session_state['feedback_enviado'] = False
+    st.session_state['ultimo_resultado_ia'] = None
+    st.session_state['dados_tecnicos_cache'] = None
+    st.session_state['texto_para_analisar'] = nova_entrada
+    st.session_state.widget_input = ""
+    st.session_state['processing'] = True
+
+def realizar_login_admin():
+    if st.session_state.senha_admin == ADMIN_PASS:
+        st.session_state['admin_autenticado'] = True
+    else:
+        st.error("Senha incorreta.")
+
+def sair_admin():
+    st.session_state['modo_admin'] = False
+    st.session_state['admin_autenticado'] = False
+
+def carregar_arquivo_lista(caminho):
+    if os.path.exists(caminho):
+        with open(caminho, 'r') as f: return f.read()
+    return ""
+
+def salvar_arquivo_lista(caminho, conteudo):
+    try:
+        with open(caminho, 'w') as f: f.write(conteudo)
+        st.toast("Lista salva com sucesso!", icon="✅")
+    except Exception as e: st.error(f"Erro ao salvar: {e}")
+
+def processar_feedback_wrapper(tipo):
+    if st.session_state['texto_para_analisar'] and st.session_state['ultimo_resultado_ia']:
+        salvar_feedback(st.session_state['texto_para_analisar'], st.session_state['ultimo_resultado_ia'], tipo)
+        st.session_state['feedback_enviado'] = True
+        st.toast("Obrigado pelo feedback!", icon="🙏")
+
+def get_remote_ip():
+    try:
+        if hasattr(st, "context") and hasattr(st.context, "headers"):
+            headers = st.context.headers
+            return headers.get("X-Forwarded-For", "127.0.0.1").split(',')[0]
+        return "127.0.0.1"
+    except: return "127.0.0.1"
+
+# --- INJEÇÃO DE JS ---
+components.html(f"""<script>
+    function injectAppleIcon() {{ var head = window.parent.document.getElementsByTagName('head')[0]; var link = window.parent.document.querySelector("link[rel='apple-touch-icon']"); if (!link) {{ link = window.parent.document.createElement('link'); link.rel = 'apple-touch-icon'; head.appendChild(link); }} link.href = '{ICON_URL}'; }}
+    function manageInstallButton() {{ const isDesktop = window.parent.innerWidth > 768; const isStandalone = window.parent.matchMedia('(display-mode: standalone)').matches || window.parent.navigator.standalone === true; if (isDesktop || isStandalone) {{ const buttons = window.parent.document.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
+    injectAppleIcon(); setInterval(manageInstallButton, 1000);
+    </script>""", height=0)
+
+# --- INTERFACE PRINCIPAL ---
+
+if st.session_state['modo_admin']:
+    if not st.session_state['admin_autenticado']:
+        st.title("🔒 Acesso Restrito")
+        st.text_input("Senha de Administrador:", type="password", key="senha_admin", on_change=realizar_login_admin)
+        if st.button("Voltar"): sair_admin()
+    else:
+        st.title("⚙️ Painel de Controle")
+        if st.button("Sair"): sair_admin()
+        
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "🕵️ Histórico", "✅ Whitelist", "🚫 Blacklist", "📜 Logs"])
+        
+        with tab1:
+            st.subheader("Analytics")
+            if DATASET_FILE.exists():
+                try:
+                    df = pd.read_json(DATASET_FILE)
+                    if not df.empty:
+                        df['data'] = pd.to_datetime(df['timestamp']).dt.date
+                        col1, col2 = st.columns(2)
+                        col1.metric("Consultas Totais", len(df))
+                        st.bar_chart(df.groupby('data').size())
+                    else: st.info("Sem dados.")
+                except: st.error("Erro dataset.")
+            
+            if FEEDBACK_FILE.exists():
+                try:
+                    df_f = pd.read_json(FEEDBACK_FILE)
+                    if not df_f.empty:
+                        st.subheader("Feedbacks")
+                        st.bar_chart(df_f['avaliacao'].value_counts())
+                except: pass
+
+        with tab2:
+            st.subheader("Histórico de Consultas")
+            if DATASET_FILE.exists():
+                try:
+                    with open(DATASET_FILE, 'r', encoding='utf-8') as f:
+                        raw_data = json.load(f)
+                    
+                    table_data = []
+                    for item in raw_data:
+                        meta = item.get('metadados', {})
+                        origem = meta.get('origem', meta.get('ip', 'Desconhecido'))
+                        dados_tec = item.get('dados_tecnicos', {})
+                        entrada = dados_tec.get('input') or dados_tec.get('url_final') or dados_tec.get('texto_puro') or "N/A"
+                        raw_veredito = item.get('analise_modelo', '')
+                        veredito_limpo = "Indefinido"
+                        if "SEGURO" in raw_veredito: veredito_limpo = "✅ SEGURO"
+                        elif "PERIGO" in raw_veredito or "GOLPE" in raw_veredito: veredito_limpo = "🚨 GOLPE"
+                        elif "ALERTA" in raw_veredito: veredito_limpo = "⚠️ ALERTA"
+                        
+                        table_data.append({
+                            "Data": pd.to_datetime(item['timestamp']).strftime('%d/%m %H:%M'),
+                            "Origem": origem,
+                            "Consulta": str(entrada)[:60],
+                            "Status": veredito_limpo
+                        })
+                    
+                    df_hist = pd.DataFrame(table_data).iloc[::-1]
+                    st.dataframe(df_hist, width=1000, hide_index=True)
+                except Exception as e: st.error(f"Erro histórico: {e}")
+            else: st.info("Nenhum histórico disponível.")
+
+        with tab3:
+            st.subheader("Whitelist")
+            cw = carregar_arquivo_lista(WHITELIST_FILE)
+            nw = st.text_area("Domínios Seguros", value=cw, height=300)
+            if st.button("Salvar WL"): salvar_arquivo_lista(WHITELIST_FILE, nw)
+
+        with tab4:
+            st.subheader("Blacklist")
+            cb = carregar_arquivo_lista(BLACKLIST_FILE)
+            nb = st.text_area("Domínios Bloqueados", value=cb, height=300)
+            if st.button("Salvar BL"): salvar_arquivo_lista(BLACKLIST_FILE, nb)
+
+        with tab5:
+            st.subheader("Logs")
+            if LOG_FILE.exists():
+                with open(LOG_FILE, 'r') as f: st.code("".join(f.readlines()[-50:]))
+            else: st.info("Vazio.")
+
+else:
+    st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>🛡️ É Golpe?</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: gray; margin-top: -10px; font-size: 1rem;'>IA contra Fraudes Digitais</h3>", unsafe_allow_html=True)
+
+    with st.form(key='form_verificacao'):
+        locked = st.session_state['processing']
+        st.text_input("Link ou Mensagem:", placeholder="Cole aqui...", key="widget_input", disabled=locked)
+        st.form_submit_button("Analisar Risco", type="primary", on_click=submeter_consulta, disabled=locked)
+
+    texto_analise = st.session_state['texto_para_analisar']
+
+    if texto_analise and st.session_state['processing']:
+        url_check = extrair_url(texto_analise)
+        status_box = st.empty()
+        status_box.markdown(f"<div class='status-card'>🔎 Iniciando auditoria...</div>", unsafe_allow_html=True)
+        
+        user_ip = get_remote_ip()
+        meta_web = {"origem": f"Web ({user_ip})"}
+        resultado_final = ""
+        dados_tecnicos_capturados = None
+
+        try:
+            if url_check:
+                status_box.markdown(f"<div class='status-card'>🌐 Auditando domínio...</div>", unsafe_allow_html=True)
+                
+                if not url_check.startswith("http"): url_temp = "http://" + url_check
+                else: url_temp = url_check
+                url_final, foi_desencurtado = desencurtar_link(url_temp)
+                
+                if foi_desencurtado:
+                    st.toast(f"Redirecionamento: {limpar_dominio(url_final)}", icon="➡️")
+
+                domain_clean = limpar_dominio(url_final)
+                
+                # Check de Blacklist
+                _, blacklist = carregar_listas_seguranca()
+                eh_blacklist = False
+                for bad in blacklist:
+                    if bad in domain_clean: eh_blacklist = True; break
+                
+                if eh_blacklist:
+                    status_box.empty()
+                    resultado_final = f"""
+                    **Veredito:** :red[**GOLPE**]
+
+                    🛡️ **Nível de Segurança:** 0/100
+
+                    **Análise:**
+                    Este domínio ({domain_clean}) foi identificado no banco de dados de ameaças ativas.
+                    
+                    **Ação:**
+                    - 🚫 NÃO ACESSE este site.
+                    - Bloqueie o remetente.
+                    """
+                else:
+                    seguro_tecnico, motivo, url_validada = validar_seguranca_url(url_final)
+                    
+                    if not seguro_tecnico and "DNS_FAIL" in motivo:
+                        status_box.empty()
+                        resultado_final = f"""
+                        **Veredito:** :orange[**SITE OFFLINE**]
+
+                        🛡️ **Nível de Segurança:** 0/100
+
+                        **Análise:**
+                        Não conseguimos conectar ao site **{domain_clean}**.
+                        
+                        **Por que isso acontece?**
+                        1. O site pode ter sido **derrubado por denúncias de fraude**.
+                        2. O endereço pode não existir.
+                        3. O servidor está desligado.
+
+                        **Ação Recomendada:**
+                        ⚠️ **Tenha cautela redobrada.** Se você recebeu este link com promessas de ganhos ou cobranças urgentes, é muito provável que seja um golpe que já foi neutralizado.
+                        """
+                    
+                    elif not seguro_tecnico:
+                        status_box.empty()
+                        st.error(f"🚫 **Bloqueio de Segurança:** {motivo}")
+                        resultado_final = None
+                    
+                    else:
+                        status_box.markdown(f"<div class='status-card'>🤖 IA verificando padrões...</div>", unsafe_allow_html=True)
+                        url_final = url_validada
+                        domain_clean = limpar_dominio(url_final)
+                        
+                        whitelist, _ = carregar_listas_seguranca()
+                        eh_confiavel = False
+                        for safe in whitelist:
+                            if domain_clean == safe or domain_clean.endswith("." + safe): eh_confiavel = True; break
+                        
+                        if eh_confiavel:
+                            resultado_final = f"**Veredito:** :green[**SEGURO**]\n\n**Score:** 100/100\n\n✅ **SITE OFICIAL:** {domain_clean}\nEste é um domínio verificado."
+                        else:
+                            dados = {}
+                            dados['google'] = checar_google_safebrowsing(url_final)
+                            dados['vt'] = checar_virustotal(url_final)
+                            dados['phishtank'] = checar_bases_phishing(url_final)
+                            dados['urlscan'] = checar_urlscan(url_final)
+                            dados['idade'] = checar_idade_dominio(url_final)
+                            dados['ssl'] = checar_ssl(url_final)
+                            dados['typosquatting'] = checar_typosquatting(url_final)
+                            dados['conteudo'] = analisar_conteudo_site(url_final)
+                            
+                            dados_tecnicos_capturados = dados 
+                            resultado_final = analisar_com_ia(url_final, dados, origem="streamlit", metadados=meta_web)
+            else:
+                status_box.markdown(f"<div class='status-card'>🧠 IA lendo mensagem...</div>", unsafe_allow_html=True)
+                resultado_final = analisar_texto_ia(texto_analise, origem="streamlit", metadados=meta_web)
+
+            status_box.empty() 
+            
+            if resultado_final:
+                st.session_state['ultimo_resultado_ia'] = resultado_final
+                st.session_state['dados_tecnicos_cache'] = dados_tecnicos_capturados
+            
+        except Exception as e:
+            status_box.empty()
+            st.error(f"Erro interno: {e}")
+            registrar_log(f"Erro Frontend: {e}", "ERRO")
+        
+        st.session_state['processing'] = False
+        st.rerun()
+
+    if st.session_state['ultimo_resultado_ia']:
+        txt_orig = st.session_state['texto_para_analisar']
+        resumo = txt_orig[:60] + "..." if len(txt_orig) > 60 else txt_orig
+        st.markdown(f"<div class='context-box'>Analisando: <b>{resumo}</b></div>", unsafe_allow_html=True)
+
+        txt_ia = st.session_state['ultimo_resultado_ia']
+        
+        ver, score, css, icon = parse_ia(txt_ia)
+        
+        # --- CORREÇÃO DO REGEX PARA LIMPEZA ---
+        # Remove a linha inteira que contém "Veredito"
+        clean_txt = re.sub(r'.*Veredito:?.*\n?', '', txt_ia, flags=re.I)
+        # Remove a linha inteira que contém "Score" OU "Nível de Segurança"
+        clean_txt = re.sub(r'.*(?:Score|Nível de Segurança).*\n?', '', clean_txt, flags=re.I)
+        # Limpeza final
+        clean_txt = clean_txt.split("⚠️ REGRA VISUAL")[0].strip()
+
+        st.markdown(f"""
+        <div class="result-box">
+            <div class="verdict-header">
+                <div class="verdict-title {css}">{icon} {ver}</div>
+                <div class="risk-score">Nível de Segurança: <b>{score}/100</b></div>
+            </div>
+            <div style="font-size: 16px; line-height: 1.6; color: var(--ios-text);">{clean_txt.replace(chr(10), '<br>')}</div>
+        </div>""", unsafe_allow_html=True)
+
+        if st.session_state.get('dados_tecnicos_cache'):
+            d = st.session_state['dados_tecnicos_cache']
+            with st.expander("📊 Detalhes Técnicos", expanded=False):
+                c1, c2 = st.columns(2)
+                c1.metric("Idade", d.get("idade", "?"))
+                ssl_info = d.get("ssl", "")
+                c2.metric("SSL", "Válido" if "Emitido" in ssl_info else "Risco")
+                
+                scan_res = d.get('urlscan', '')
+                if "MALICIOSO" in scan_res: st.error(f"URLScan: {scan_res}")
+                
+                typo = d.get("typosquatting")
+                if typo != "Não": st.error(f"Clone de Marca: {typo}")
+
+        if not st.session_state['feedback_enviado']:
+            st.markdown("---")
+            c1, c2 = st.columns(2)
+            with c1: st.button("👍 Útil", use_container_width=True, on_click=processar_feedback_wrapper, args=("POSITIVO",), type="secondary")
+            with c2: st.button("👎 Errado", use_container_width=True, on_click=processar_feedback_wrapper, args=("NEGATIVO",), type="secondary")
+        else:
+            st.caption("Feedback enviado. Obrigado!")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("📲 Instalar App", type="secondary", use_container_width=True):
+        mostrar_instrucoes_instalacao()
+    st.caption("Beta - Ajude a manter o serviço ativo: https://livepix.gg/asmaia")

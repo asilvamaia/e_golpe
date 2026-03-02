@@ -1,6 +1,5 @@
 // ATENÇÃO: Substitua a URL abaixo pela URL pública da sua API no Railway
-const API_URL = "https://SEU_APP_NO_RAILWAY.up.railway.app/api/v1/analyze";
-
+const API_URL = "https://e-golpe.up.railway.app/api/v1/analyze";
 document.addEventListener('DOMContentLoaded', async () => {
     const urlDisplay = document.getElementById('current-url');
     const analyzeBtn = document.getElementById('analyze-btn');
