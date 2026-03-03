@@ -14,6 +14,8 @@ import logging
 import httpx
 import asyncio
 import redis
+import hashlib
+from pyhibp import pwnedpasswords
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -809,3 +811,89 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
         salvar_no_dataset({"input": texto_seguro}, resp.text, metadados)
         return resp.text
     except Exception as e: return f"Erro IA: {e}"
+
+# --- 8. INTEGRAÇÃO HAVE I BEEN PWNED ---
+
+async def checar_senha_vazada(senha: str) -> bool:
+    """Verifica se a senha plana já foi vazada usando k-anonymity (SHA-1 prefix) no HIBP."""
+    try:
+        # A própria biblioteca pyhibp lida com o k-anonymity internamente
+        # mas precisamos nos certificar de chamá-la de forma assíncrona/segura
+        # como a versão da lib é síncrona, fazemos em to_thread
+        resultado = await asyncio.to_thread(pwnedpasswords.is_password_breached, password=senha)
+        return resultado > 0 # retorna True se vazada
+    except Exception as e:
+        registrar_log(f"Erro ao checar HIBP: {e}", "ERRO")
+        return False # Fall fail-safe
+
+# --- 9. VISÃO COMPUTACIONAL (OCR GEMINI) ---
+
+async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streamlit", metadados=None):
+    """Analisa uma imagem enviada pelo usuário buscando conteúdo malicioso via OCR multi-modal."""
+    registrar_log("Analisando Imagem (OCR)...", "INFO")
+    
+    if not CLIENTE_IA: configurar_ia()
+    if not CLIENTE_IA: return "⚠️ IA Offline (Erro de conexão)."
+
+    try:
+        # Usando a API do Gemini 1.5/2.0 para upload de conteúdo multi modal
+        config_seguranca = types.GenerateContentConfig(
+            safety_settings=[
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE
+                ),
+            ]
+        )
+        
+        instrucoes = montar_instrucoes_formato(origem, score=60, classificacao="ANÁLISE INICIAL", fatores=["Imagem analisada"], alerta_sensivel=None)
+        
+        prompt_completo = f"""
+        {INSTRUCOES_SISTEMA}
+        
+        Você recebeu um 'print de tela' ou 'foto'.
+        Sua tarefa é ler atentamente TUDO o que está na tela (OCR) e analisar se há indícios de Fraude ou Fake News.
+        Se atente para:
+        - Boletos e Códigos de Barras falsos.
+        - Mensagens de "Parentes pedindo dinheiro" no WhatsApp ou SMS.
+        - Ofertas boas demais para ser verdade.
+        - Notificações falsas de "Conta Bloqueada" (bancos, redes sociais).
+        
+        {instrucoes}
+        
+        Responda em Markdown, com formato empático.
+        """
+
+        # Envia a parte em texto + a parte em imagem raw (suportado pela nova API client do genai)
+        parts = [
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            prompt_completo
+        ]
+
+        resp = CLIENTE_IA.models.generate_content(
+            model=MODELO_NOME,
+            contents=parts,
+            config=config_seguranca
+        )
+        
+        if not resp.text:
+             raise ValueError("Resposta bloqueada pelo filtro.")
+
+        salvar_no_dataset({"input": "UPLOAD_IMAGEM_OCR", "tipo": mime_type}, resp.text, metadados)
+        return resp.text
+    except Exception as e:
+        registrar_log(f"Erro IA OCR: {e}", "ERRO")
+        return f"Desculpe, não consegui processar a imagem. Um erro interno ocorreu."
+

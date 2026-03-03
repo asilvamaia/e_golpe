@@ -656,6 +656,27 @@ if bot:
                  analise = asyncio.run(analisar_texto_ia(texto_usuario, origem="telegram", metadados=meta_telegram))
             bot.edit_message_text(chat_id=message.chat.id, message_id=msg_wait.message_id, text=analise, parse_mode="Markdown")
 
+    @bot.message_handler(content_types=['photo'])
+    def processar_imagem(message):
+        registrar_usuario(message.from_user.id)
+        msg_wait = bot.reply_to(message, "👁️ Baixando e analisando imagem (OCR)...")
+        meta_telegram = {"origem": "Telegram (Imagem)", "user_id": message.from_user.id, "nome": message.from_user.first_name}
+        
+        try:
+            # Pega o arquivo de maior resolução
+            file_info = bot.get_file(message.photo[-1].file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            from core import analisar_imagem_ia
+            import asyncio
+            
+            analise = asyncio.run(analisar_imagem_ia(downloaded_file, "image/jpeg", origem="telegram", metadados=meta_telegram))
+            bot.edit_message_text(chat_id=message.chat.id, message_id=msg_wait.message_id, text=analise, parse_mode="Markdown")
+            
+        except Exception as e:
+            registrar_log(f"Erro no Telegram ao analisar foto: {e}", "ERRO")
+            bot.edit_message_text(chat_id=message.chat.id, message_id=msg_wait.message_id, text="Desculpe, não consegui analisar a imagem. Tente enviar de novo.")
+
 if __name__ == '__main__' and TELEGRAM_TOKEN:
     print("Bot Telegram Iniciado")
     bot.infinity_polling()

@@ -19,6 +19,8 @@ from core import (
     salvar_feedback,
     desencurtar_link,
     registrar_log,
+    checar_senha_vazada,
+    analisar_imagem_ia,
     LOG_FILE
 )
 from database.db import SessionLocal
@@ -170,14 +172,22 @@ def verificar_senha(senha_raw, senha_hash):
 
 def submeter_consulta():
     nova_entrada = st.session_state.widget_input
+    nova_imagem = st.session_state.widget_image
+    nova_senha = st.session_state.widget_password
     
     if nova_entrada.strip() == MAGIC_WORD:
         st.session_state['modo_admin'] = True
         st.session_state.widget_input = ""
+        st.session_state.widget_image = None
+        st.session_state.widget_password = ""
+        return
+
+    if not nova_entrada and not nova_imagem and not nova_senha:
+        st.toast("Preencha algum campo ou envie uma imagem.", icon="⚠️")
         return
 
     safe, msg_erro = validar_seguranca_input(nova_entrada)
-    if not safe:
+    if nova_entrada and not safe:
         st.toast(msg_erro, icon="❌")
         return
 
@@ -190,7 +200,11 @@ def submeter_consulta():
     st.session_state['ultimo_resultado_ia'] = None
     st.session_state['dados_tecnicos_cache'] = None
     st.session_state['texto_para_analisar'] = nova_entrada
+    st.session_state['imagem_para_analisar'] = nova_imagem
+    st.session_state['senha_para_analisar'] = nova_senha
     st.session_state.widget_input = ""
+    # st.session_state.widget_image is cleared automatically by Streamlit
+    st.session_state.widget_password = ""
     st.session_state['processing'] = True
 
 def realizar_login_admin():
@@ -283,6 +297,50 @@ if st.session_state['modo_admin']:
                     col1, col2 = st.columns(2)
                     col1.metric("Consultas Totais", len(df))
                     st.bar_chart(df.groupby('data').size())
+                    
+                    st.markdown("---")
+                    
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        if st.button("📄 Gerar Relatório (PDF)", use_container_width=True):
+                            from fpdf import FPDF
+                            import tempfile
+                            class PDF(FPDF):
+                                def header(self):
+                                    self.set_font('helvetica', 'B', 15)
+                                    self.cell(0, 10, 'GuardianBot - Relatório de Segurança', border=False, align='C')
+                                    self.ln(20)
+                            pdf = PDF()
+                            pdf.add_page()
+                            pdf.set_font('helvetica', '', 12)
+                            pdf.cell(0, 10, f"Data de geração: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True)
+                            pdf.cell(0, 10, f"Total de consultas analisadas: {len(df)}", ln=True)
+                            
+                            # Contar golpes vs seguros
+                            seguros = sum(1 for _, row in df.iterrows() if "SEGURO" in str(row['analise_modelo']))
+                            golpes = sum(1 for _, row in df.iterrows() if "GOLPE" in str(row['analise_modelo']) or "PERIGO" in str(row['analise_modelo']))
+                            pdf.cell(0, 10, f"Sites/Mensagens Seguras: {seguros}", ln=True)
+                            pdf.cell(0, 10, f"Ameaças Detectadas: {golpes}", ln=True)
+                            
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                                pdf.output(tmp.name)
+                                with open(tmp.name, "rb") as pdf_file:
+                                    st.download_button("⬇️ Baixar PDF", data=pdf_file, file_name=f"relatorio_guardian_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf")
+                    
+                    with c_btn2:
+                        if st.button("🧠 Preparar Retreinamento", use_container_width=True, type="primary"):
+                            with st.spinner("Compilando feedbacks negativos para a IA..."):
+                                import subprocess
+                                try:
+                                    resultado = subprocess.run(["python", "scripts/preparar_finetune.py"], capture_output=True, text=True)
+                                    if resultado.returncode == 0:
+                                        st.success("Dataset de retreinamento gerado com sucesso!")
+                                        st.code(resultado.stdout)
+                                    else:
+                                        st.error(f"Erro ao gerar dataset: {resultado.stderr}")
+                                except Exception as e:
+                                    st.error(f"Erro ao executar script: {e}")
+
                 else: 
                     st.info("Sem dados de consultas.")
 
@@ -390,12 +448,25 @@ else:
 
     with st.form(key='form_verificacao'):
         locked = st.session_state['processing']
-        st.text_input("Link ou Mensagem:", placeholder="Cole aqui...", key="widget_input", disabled=locked)
-        st.form_submit_button("Analisar Risco", type="primary", on_click=submeter_consulta, disabled=locked)
+        st.caption("Verifique um site, mensagem, chave PIX, ou envie um print:")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.text_input("Cole o texto, link ou chave:", placeholder="Ex: www.banco.com ou chave PIX...", key="widget_input", disabled=locked)
+        with col2:
+            st.file_uploader("Ou envie foto", type=['png', 'jpg', 'jpeg'], key="widget_image", disabled=locked, label_visibility="collapsed")
+            
+        # Adicionar verificação explícita de senha vazada
+        st.caption("🔒 Teste se sua senha já vazou na web:")
+        st.text_input("Senha (Não será salva):", type="password", key="widget_password", disabled=locked)
+            
+        st.form_submit_button("Analisar Segurança", type="primary", on_click=submeter_consulta, disabled=locked)
 
     texto_analise = st.session_state['texto_para_analisar']
+    imagem_analise = st.session_state.get('imagem_para_analisar')
+    senha_analise = st.session_state.get('senha_para_analisar')
 
-    if texto_analise and st.session_state['processing']:
+    if (texto_analise or imagem_analise or senha_analise) and st.session_state['processing']:
         url_check = extrair_url(texto_analise)
         status_box = st.empty()
         status_box.markdown(f"<div class='status-card'>🔎 Iniciando auditoria...</div>", unsafe_allow_html=True)
@@ -406,93 +477,126 @@ else:
         dados_tecnicos_capturados = None
 
         try:
-            if url_check:
-                status_box.markdown(f"<div class='status-card'>🌐 Auditando domínio...</div>", unsafe_allow_html=True)
+            if senha_analise:
+                status_box.markdown(f"<div class='status-card'>🔎 Consultando banco de dados de vazamentos...</div>", unsafe_allow_html=True)
+                vazada = asyncio.run(checar_senha_vazada(senha_analise))
                 
-                if not url_check.startswith("http"): url_temp = "http://" + url_check
-                else: url_temp = url_check
-                url_final, foi_desencurtado = desencurtar_link(url_temp)
-                
-                if foi_desencurtado:
-                    st.toast(f"Redirecionamento: {limpar_dominio(url_final)}", icon="➡️")
-
-                domain_clean = limpar_dominio(url_final)
-                
-                # Check de Blacklist
-                _, blacklist = carregar_listas_seguranca()
-                eh_blacklist = False
-                for bad in blacklist:
-                    if bad in domain_clean: eh_blacklist = True; break
-                
-                if eh_blacklist:
-                    status_box.empty()
+                if vazada:
                     resultado_final = f"""
-                    **Veredito:** :red[**GOLPE**]
+                    **Veredito:** :red[**VAZADA (PERIGO)**]
 
                     🛡️ **Nível de Segurança:** 0/100
 
                     **Análise:**
-                    Este domínio ({domain_clean}) foi identificado no banco de dados de ameaças ativas.
+                    Esta senha foi encontrada em vazamentos de dados públicos (Data Breaches). 
                     
                     **Ação:**
-                    - 🚫 NÃO ACESSE este site.
-                    - Bloqueie o remetente.
+                    - 🚫 **NUNCA** use essa senha. Mude imediatamente caso a utilize em algum serviço.
                     """
                 else:
-                    seguro_tecnico, motivo, url_validada = validar_seguranca_url(url_final)
+                    resultado_final = f"""
+                    **Veredito:** :green[**SEGURA**]
+
+                    🛡️ **Nível de Segurança:** 100/100
+
+                    **Análise:**
+                    Esta senha **não** foi encontrada em nenhum banco público de vazamentos conhecidos até o momento.
+                    """
                     
-                    if not seguro_tecnico and "DNS_FAIL" in motivo:
+            elif imagem_analise:
+                status_box.markdown(f"<div class='status-card'>👁️ IA extraindo texto e analisando imagem...</div>", unsafe_allow_html=True)
+                img_bytes = imagem_analise.getvalue()
+                mime_type = imagem_analise.type
+                resultado_final = asyncio.run(analisar_imagem_ia(img_bytes, mime_type, origem="streamlit", metadados=meta_web))
+
+            elif texto_analise:
+                if url_check:
+                    status_box.markdown(f"<div class='status-card'>🌐 Auditando domínio...</div>", unsafe_allow_html=True)
+                    
+                    if not url_check.startswith("http"): url_temp = "http://" + url_check
+                    else: url_temp = url_check
+                    url_final, foi_desencurtado = desencurtar_link(url_temp)
+                    
+                    if foi_desencurtado:
+                        st.toast(f"Redirecionamento: {limpar_dominio(url_final)}", icon="➡️")
+
+                    domain_clean = limpar_dominio(url_final)
+                    
+                    # Check de Blacklist
+                    _, blacklist = carregar_listas_seguranca()
+                    eh_blacklist = False
+                    for bad in blacklist:
+                        if bad in domain_clean: eh_blacklist = True; break
+                    
+                    if eh_blacklist:
                         status_box.empty()
                         resultado_final = f"""
-                        **Veredito:** :orange[**SITE OFFLINE**]
+                        **Veredito:** :red[**GOLPE**]
 
                         🛡️ **Nível de Segurança:** 0/100
 
                         **Análise:**
-                        Não conseguimos conectar ao site **{domain_clean}**.
+                        Este domínio ({domain_clean}) foi identificado no banco de dados de ameaças ativas.
                         
-                        **Por que isso acontece?**
-                        1. O site pode ter sido **derrubado por denúncias de fraude**.
-                        2. O endereço pode não existir.
-                        3. O servidor está desligado.
-
-                        **Ação Recomendada:**
-                        ⚠️ **Tenha cautela redobrada.** Se você recebeu este link com promessas de ganhos ou cobranças urgentes, é muito provável que seja um golpe que já foi neutralizado.
+                        **Ação:**
+                        - 🚫 NÃO ACESSE este site.
+                        - Bloqueie o remetente.
                         """
-                    
-                    elif not seguro_tecnico:
-                        status_box.empty()
-                        st.error(f"🚫 **Bloqueio de Segurança:** {motivo}")
-                        resultado_final = None
-                    
                     else:
-                        status_box.markdown(f"<div class='status-card'>🤖 IA verificando padrões...</div>", unsafe_allow_html=True)
-                        url_final = url_validada
-                        domain_clean = limpar_dominio(url_final)
+                        seguro_tecnico, motivo, url_validada = validar_seguranca_url(url_final)
                         
-                        whitelist, _ = carregar_listas_seguranca()
-                        eh_confiavel = False
-                        for safe in whitelist:
-                            if domain_clean == safe or domain_clean.endswith("." + safe): eh_confiavel = True; break
+                        if not seguro_tecnico and "DNS_FAIL" in motivo:
+                            status_box.empty()
+                            resultado_final = f"""
+                            **Veredito:** :orange[**SITE OFFLINE**]
+
+                            🛡️ **Nível de Segurança:** 0/100
+
+                            **Análise:**
+                            Não conseguimos conectar ao site **{domain_clean}**.
+                            
+                            **Por que isso acontece?**
+                            1. O site pode ter sido **derrubado por denúncias de fraude**.
+                            2. O endereço pode não existir.
+                            3. O servidor está desligado.
+
+                            **Ação Recomendada:**
+                            ⚠️ **Tenha cautela redobrada.** Se você recebeu este link com promessas de ganhos ou cobranças urgentes, é muito provável que seja um golpe que já foi neutralizado.
+                            """
                         
-                        if eh_confiavel:
-                            resultado_final = f"**Veredito:** :green[**SEGURO**]\n\n**Score:** 100/100\n\n✅ **SITE OFICIAL:** {domain_clean}\nEste é um domínio verificado."
+                        elif not seguro_tecnico:
+                            status_box.empty()
+                            st.error(f"🚫 **Bloqueio de Segurança:** {motivo}")
+                            resultado_final = None
+                        
                         else:
-                            cache_analise, cache_dados = checar_cache_analise(url_final)
-                            if cache_analise:
-                                dados_tecnicos_capturados = cache_dados
-                                resultado_final = cache_analise + "\n\n*(⚡ Resultado obtido do Cache)*"
+                            status_box.markdown(f"<div class='status-card'>🤖 IA verificando padrões...</div>", unsafe_allow_html=True)
+                            url_final = url_validada
+                            domain_clean = limpar_dominio(url_final)
+                            
+                            whitelist, _ = carregar_listas_seguranca()
+                            eh_confiavel = False
+                            for safe in whitelist:
+                                if domain_clean == safe or domain_clean.endswith("." + safe): eh_confiavel = True; break
+                            
+                            if eh_confiavel:
+                                resultado_final = f"**Veredito:** :green[**SEGURO**]\n\n**Score:** 100/100\n\n✅ **SITE OFICIAL:** {domain_clean}\nEste é um domínio verificado."
                             else:
-                                dados = asyncio.run(orquestrar_coleta_dados_url(url_final))
-                                dados_tecnicos_capturados = dados 
-                                resultado_final = asyncio.run(analisar_com_ia(url_final, dados, origem="streamlit", metadados=meta_web))
-            else:
-                status_box.markdown(f"<div class='status-card'>🧠 IA lendo mensagem...</div>", unsafe_allow_html=True)
-                cache_analise, _ = checar_cache_analise(texto_analise)
-                if cache_analise:
-                    resultado_final = cache_analise + "\n\n*(⚡ Resultado obtido do Cache)*"
+                                cache_analise, cache_dados = checar_cache_analise(url_final)
+                                if cache_analise:
+                                    dados_tecnicos_capturados = cache_dados
+                                    resultado_final = cache_analise + "\n\n*(⚡ Resultado obtido do Cache)*"
+                                else:
+                                    dados = asyncio.run(orquestrar_coleta_dados_url(url_final))
+                                    dados_tecnicos_capturados = dados 
+                                    resultado_final = asyncio.run(analisar_com_ia(url_final, dados, origem="streamlit", metadados=meta_web))
                 else:
-                    resultado_final = asyncio.run(analisar_texto_ia(texto_analise, origem="streamlit", metadados=meta_web))
+                    status_box.markdown(f"<div class='status-card'>🧠 IA lendo mensagem...</div>", unsafe_allow_html=True)
+                    cache_analise, _ = checar_cache_analise(texto_analise)
+                    if cache_analise:
+                        resultado_final = cache_analise + "\n\n*(⚡ Resultado obtido do Cache)*"
+                    else:
+                        resultado_final = asyncio.run(analisar_texto_ia(texto_analise, origem="streamlit", metadados=meta_web))
 
             status_box.empty() 
             
