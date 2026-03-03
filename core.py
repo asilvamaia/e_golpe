@@ -787,6 +787,10 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
 async def checar_senha_vazada(senha: str) -> bool:
     """Verifica se a senha plana já foi vazada usando k-anonymity (SHA-1 prefix) no HIBP."""
     try:
+        # A API exige um User-Agent preenchido ou retorna HTTP 403.
+        import pyhibp
+        pyhibp.set_user_agent(ua="GuardianBot_Antifraude")
+        
         # A própria biblioteca pyhibp lida com o k-anonymity internamente
         # mas precisamos nos certificar de chamá-la de forma assíncrona/segura
         # como a versão da lib é síncrona, fazemos em to_thread
