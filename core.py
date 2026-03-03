@@ -750,9 +750,11 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
     instrucoes = montar_instrucoes_formato(origem, score, classificacao, fatores, alerta_sensivel=cat_sensivel)
     fake_blk = f"\n<checagem>{aviso_fakenews}</checagem>\nORDEM: É FAKE." if aviso_fakenews else ""
     texto_seguro = texto.replace("<", "").replace(">", "")
+    data_hoje = datetime.now().strftime("%d/%m/%Y")
+    
     prompt = f"""
     {INSTRUCOES_SISTEMA}
-    Analise esta mensagem.
+    Analise esta mensagem. Considere que hoje é {data_hoje}.
     <instrucao_especial>
     Se for notícia VERDADEIRA, conversa normal ou saudação: Veredito SEGURO, Score 100.
     Se for boato sem fonte: ALERTA (FAKE NEWS), Score Baixo.
@@ -847,12 +849,15 @@ async def analisar_arquivo_ia(file_bytes: bytes, mime_type: str, origem="streaml
                 registrar_log(f"Erro ao ler assinaturas PDF com PyMuPDF: {e}", "ALERTA")
 
         instrucoes = montar_instrucoes_formato(origem, 60, "ANÁLISE INICIAL", ["Arquivo analisado"], None)
+        data_hoje = datetime.now().strftime("%d/%m/%Y")
         
         prompt_completo = f"""
         {INSTRUCOES_SISTEMA}
         
         Você recebeu um arquivo ({'PDF Documento' if is_pdf else 'Print de tela / Foto'}).
         Sua tarefa é ler atentamente TUDO o que está na tela/documento e analisar se há indícios de Fraude ou Fake News.
+        
+        Considere que a data de hoje é {data_hoje}. Quaisquer datas no documento devem ser avaliadas com base no dia de hoje.
         
         Se for um DOCUMENTO JURÍDICO ou OFICIAL (Petição, Sentença, Notificação, OAB, Receita Federal, Tribunal de Justiça):
         - Verifique a autenticidade aparente. Erros grosseiros de formatação, brasões mal recortados ou português ruim são fortes indícios de fraude judiciária.
