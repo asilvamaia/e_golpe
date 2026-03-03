@@ -253,8 +253,9 @@ def salvar_arquivo_lista(list_type, conteudo):
         db.close()
 
 def processar_feedback_wrapper(tipo):
-    if st.session_state['texto_para_analisar'] and st.session_state['ultimo_resultado_ia']:
-        salvar_feedback(st.session_state['texto_para_analisar'], st.session_state['ultimo_resultado_ia'], tipo)
+    if st.session_state.get('ultimo_resultado_ia'):
+        input_usado = st.session_state.get('texto_para_analisar') or "IMAGEM/SENHA_OCULTA"
+        salvar_feedback(input_usado, st.session_state['ultimo_resultado_ia'], tipo)
         st.session_state['feedback_enviado'] = True
         st.toast("Obrigado pelo feedback!", icon="🙏")
 
