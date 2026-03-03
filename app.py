@@ -195,10 +195,12 @@ def submeter_consulta():
 
 def realizar_login_admin():
     senha_digitada = st.session_state.senha_admin
-    # Se ADMIN_PASS_HASH não existir no .env, não permite login ou mantém um fallback seguro
-    if ADMIN_PASS_HASH and verificar_senha(senha_digitada, ADMIN_PASS_HASH):
+    admin_hash_limpo = ADMIN_PASS_HASH.strip() if ADMIN_PASS_HASH else None
+    
+    # Se ADMIN_PASS_HASH não existir no .env ou for vazio, usa o fallback seguro
+    if admin_hash_limpo and verificar_senha(senha_digitada, admin_hash_limpo):
         st.session_state['admin_autenticado'] = True
-    elif not ADMIN_PASS_HASH and senha_digitada == os.getenv("ADMIN_PASS_FALLBACK"):
+    elif not admin_hash_limpo and senha_digitada == os.getenv("ADMIN_PASS_FALLBACK"):
         # FALLBACK temporário para não quebrar o app se o bcrypt não estiver configurado
         st.session_state['admin_autenticado'] = True
     else:
