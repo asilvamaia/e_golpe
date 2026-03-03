@@ -3,7 +3,7 @@ requests
 python-dotenv
 beautifulsoup4
 python-whois
-google-genai
+google-generativeai
 url-normalize
 colorama
 pandas
