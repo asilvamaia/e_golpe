@@ -265,7 +265,7 @@ if st.session_state['modo_admin']:
         st.title("⚙️ Painel de Controle")
         if st.button("Sair"): sair_admin()
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "🕵️ Histórico", "✅ Whitelist", "🚫 Blacklist", "📜 Logs"])
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "🕵️ Histórico", "✅ Whitelist", "🚫 Blacklist", "📜 Logs", "💾 Backups"])
         
         with tab1:
             st.subheader("Analytics")
@@ -343,6 +343,41 @@ if st.session_state['modo_admin']:
             if LOG_FILE.exists():
                 with open(LOG_FILE, 'r') as f: st.code("".join(f.readlines()[-50:]))
             else: st.info("Vazio.")
+
+        with tab6:
+            st.subheader("Bkp do Banco de Dados")
+            st.write("Baixe todas as tabelas do PostgreSQL para segurança.")
+            if st.button("Gerar Arquivo de Backup (.ZIP)"):
+                import io
+                import zipfile
+                db = SessionLocal()
+                try:
+                    with st.spinner("Extraindo banco de dados..."):
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                            # Tabela Analises (Dataset)
+                            df_hist = pd.read_sql(db.query(DatasetItem).statement, db.bind)
+                            zip_file.writestr("historico_analises.csv", df_hist.to_csv(index=False))
+                            
+                            # Tabela Feedbacks
+                            df_feed = pd.read_sql(db.query(Feedback).statement, db.bind)
+                            zip_file.writestr("feedbacks.csv", df_feed.to_csv(index=False))
+                            
+                            # Tabela Listas
+                            df_list = pd.read_sql(db.query(DomainList).statement, db.bind)
+                            zip_file.writestr("listas_brancas_negras.csv", df_list.to_csv(index=False))
+
+                        st.success("Backup gerado com sucesso!")
+                        st.download_button(
+                            label="⬇️ Baixar Backup Agora",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"egolpe_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+                            mime="application/zip"
+                        )
+                except Exception as e:
+                    st.error(f"Erro ao gerar backup: {e}")
+                finally:
+                    db.close()
 
 else:
     st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>🛡️ É Golpe?</h1>", unsafe_allow_html=True)

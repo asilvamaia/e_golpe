@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 import whois
 from email_validator import validate_email, EmailNotValidError
@@ -11,6 +12,23 @@ from core import checar_cache_analise, orquestrar_coleta_dados_url, analisar_com
 load_dotenv()
 
 from fastapi.middleware.cors import CORSMiddleware
+
+API_KEY_NAME = "x-api-key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+def get_api_key(api_key_header: str = Security(api_key_header)):
+    expected_api_key = os.environ.get("API_KEY_SECRET")
+    # Se a variável API_KEY_SECRET não estiver configurada no Railway, a API fica 'aberta' temporariamente (fallback)
+    if not expected_api_key:
+        return True
+    
+    if api_key_header == expected_api_key:
+        return api_key_header
+        
+    raise HTTPException(
+        status_code=403, 
+        detail="Acesso Negado: Chave de API (x-api-key) ausente ou inválida."
+    )
 
 app = FastAPI(title="Guardian Bot API", description="API para detecção de fraudes e verificação de segurança.")
 
@@ -38,7 +56,7 @@ def home():
     return {"message": "Guardian Bot está ativo!", "status": "online"}
 
 @app.post("/check-email")
-def check_email(data: EmailRequest):
+def check_email(data: EmailRequest, api_key: str = Depends(get_api_key)):
     """
     Verifica se o formato do e-mail é válido e se o domínio aceita e-mails.
     """
@@ -54,7 +72,7 @@ def check_email(data: EmailRequest):
         return {"status": "invalid", "reason": str(e)}
 
 @app.post("/check-domain")
-def check_domain(data: DomainRequest):
+def check_domain(data: DomainRequest, api_key: str = Depends(get_api_key)):
     """
     Realiza uma consulta WHOIS básica no domínio.
     """
@@ -70,7 +88,7 @@ def check_domain(data: DomainRequest):
         raise HTTPException(status_code=400, detail=f"Erro ao consultar domínio: {str(e)}")
 
 @app.post("/api/v1/analyze")
-async def analyze_content(data: AnalyzeRequest):
+async def analyze_content(data: AnalyzeRequest, api_key: str = Depends(get_api_key)):
     """
     Analisa um link ou texto recebido usando a IA e as APIs de segurança.
     """

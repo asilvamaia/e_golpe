@@ -13,6 +13,7 @@ import ipaddress
 import logging
 import httpx
 import asyncio
+import redis
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -55,6 +56,19 @@ VIRUSTOTAL_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 GOOGLE_SB_KEY = os.getenv("GOOGLE_API_KEY") 
 GOOGLE_AI_KEY = os.getenv("GOOGLE_AI_KEY")
 URLSCAN_KEY = os.getenv("URLSCAN_API_KEY")
+
+# --- CONEXÃO REDIS ---
+REDIS_URL = os.getenv("REDIS_URL")
+if not REDIS_URL and os.getenv("REDISHOST"):
+    REDIS_URL = f"redis://default:{os.getenv('REDISPASSWORD')}@{os.getenv('REDISHOST')}:{os.getenv('REDISPORT', 6379)}"
+
+REDIS_CLIENT = None
+if REDIS_URL:
+    try:
+        REDIS_CLIENT = redis.from_url(REDIS_URL, decode_responses=True)
+        registrar_log("Redis Client conectado.", "INFO")
+    except Exception as e:
+        registrar_log(f"Falha ao conectar no Redis: {e}", "ERRO")
 
 MAX_CONTENT_SIZE = 1024 * 1024 
 REQUEST_TIMEOUT = 10 
@@ -141,6 +155,16 @@ def limpar_dominio(url):
     return domain.lower()
 
 def salvar_no_dataset(dados_entrada, analise_ia, metadados=None):
+    # Salva no Redis (Memória Rápida, 24h = 86400s)
+    if REDIS_CLIENT and dados_entrada and 'input' in dados_entrada:
+        try:
+            chave_redis = f"cache_analise:{dados_entrada['input']}"
+            dados_str = json.dumps({"analise": analise_ia, "dados": dados_entrada})
+            REDIS_CLIENT.setex(chave_redis, 86400, dados_str)
+        except Exception as e:
+            registrar_log(f"Erro ao salvar no cache Redis: {e}", "ERRO")
+
+    # Salva no Disco (PostgreSQL/SQLite)
     db = SessionLocal()
     try:
         novo_item = DatasetItem(
@@ -172,12 +196,27 @@ def salvar_feedback(texto_usuario, resposta_ia, avaliacao):
         db.close()
 
 def checar_cache_analise(input_str, max_horas=24):
+    # 1. Tenta Cache Ultra-Rápido via Redis
+    if REDIS_CLIENT:
+        try:
+            resultado_redis = REDIS_CLIENT.get(f"cache_analise:{input_str}")
+            if resultado_redis:
+                payload = json.loads(resultado_redis)
+                return payload.get("analise"), payload.get("dados")
+        except Exception as e:
+            registrar_log(f"Erro ao ler do Redis: {e}", "ERRO")
+
+    # 2. Fallback pro Banco de Dados Lento (e repopula Redis se achar)
     db = SessionLocal()
     try:
         limite = datetime.utcnow() - timedelta(hours=max_horas)
         recentes = db.query(DatasetItem).filter(DatasetItem.timestamp >= limite).order_by(DatasetItem.timestamp.desc()).all()
         for item in recentes:
             if item.dados_tecnicos and item.dados_tecnicos.get('input') == input_str:
+                if REDIS_CLIENT: # Repopula pro futuro
+                    try:
+                        REDIS_CLIENT.setex(f"cache_analise:{input_str}", 86400, json.dumps({"analise": item.analise_modelo, "dados": item.dados_tecnicos}))
+                    except: pass
                 return item.analise_modelo, item.dados_tecnicos
         return None, None
     except Exception as e:
