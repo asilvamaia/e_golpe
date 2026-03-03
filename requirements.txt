@@ -16,3 +16,5 @@ pydantic
 email-validator
 psycopg2-binary
 redis
+pyhibp
+fpdf
