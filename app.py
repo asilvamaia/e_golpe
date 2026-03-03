@@ -66,6 +66,46 @@ def configurar_visual_ios():
         /* Cores de Risco */
         .text-safe { color: #28a745; } .text-warning { color: #ffc107; } .text-danger { color: #dc3545; }
         
+        /* Ocultando Texto Padrão (Inglês) do File Uploader e Adicionando PT-BR via CSS */
+        [data-testid="stFileUploadDropzone"] div div::before {
+            content: "Arraste a Cópia de Tela / Print aqui";
+            color: var(--ios-text);
+            font-size: 14px;
+            font-weight: 500;
+            display: block;
+            margin-bottom: 5px;
+        }
+        [data-testid="stFileUploadDropzone"] div div span {
+            display: none !important;
+        }
+        [data-testid="stFileUploadDropzone"] div div small {
+            display: none !important;
+        }
+        [data-testid="stFileUploadDropzone"] button {
+            background-color: transparent !important;
+            border: 1px solid var(--ios-button) !important;
+            color: var(--ios-button) !important;
+            border-radius: 8px !important;
+            padding: 2px 10px !important;
+        }
+        [data-testid="stFileUploadDropzone"] button::before {
+            content: "Procurar Arquivo";
+        }
+        [data-testid="stFileUploadDropzone"] button span {
+            display: none !important;
+        }
+        
+        /* Ajuste do Texto "Limit 200MB" do File Uploader */
+        [data-testid="stFileUploadDropzone"]::after {
+            content: "Limite: 200MB por arquivo (PNG, JPG, JPEG)";
+            color: #888;
+            font-size: 12px;
+            display: block;
+            text-align: center;
+            margin-top: -15px;
+            margin-bottom: 10px;
+        }
+
         /* Esconde Instruções Padrão */
         [data-testid="InputInstructions"] { display: none !important; }
         div[data-testid="InputInstructions"] { display: none !important; }
@@ -449,20 +489,25 @@ else:
 
     with st.form(key='form_verificacao'):
         locked = st.session_state['processing']
-        st.caption("Verifique um site, mensagem, chave PIX, ou envie um print:")
-        st.info("💡 **Sobre Chaves PIX:** A IA não identifica o dono de *chaves aleatórias* por padrão, mas **analisa o texto da mensagem completa** (urgência, falsos sequestros) para alertar se é golpe.")
         
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.text_input("Cole o texto, link ou chave:", placeholder="Ex: www.banco.com ou chave PIX...", key="widget_input", disabled=locked)
-        with col2:
-            st.file_uploader("Ou envie foto", type=['png', 'jpg', 'jpeg'], key="widget_image", disabled=locked, label_visibility="collapsed")
+        st.markdown("### 🔍 O que você quer analisar?")
+        
+        tab_texto, tab_imagem, tab_senha = st.tabs(["📝 Texto / Link / Chave PIX", "📸 Enviar Print da Tela", "🔒 Teste de Senha Vazada"])
+        
+        with tab_texto:
+            st.info("💡 **Dica PIX:** A IA não acha o dono da chave aleatória, mas lê a mensagem inteira pra achar gatilhos de golpe!")
+            st.text_area("Cole a mensagem suspeita, o site ou a chave PIX:", height=100, placeholder="Exemplo: 'Mãe me manda um pix pra essa chave nova...' ou 'http://site-promocao.com'", key="widget_input", disabled=locked)
             
-        # Adicionar verificação explícita de senha vazada
-        st.caption("🔒 Teste se sua senha já vazou na web:")
-        st.text_input("Senha (Não será salva):", type="password", key="widget_password", disabled=locked)
+        with tab_imagem:
+            st.caption("Faça o upload de uma captura de tela (Print) para a Inteligência Artificial ler.")
+            st.file_uploader("Selecione a Imagem", type=['png', 'jpg', 'jpeg'], key="widget_image", disabled=locked, label_visibility="collapsed")
             
-        st.form_submit_button("Analisar Segurança", type="primary", on_click=submeter_consulta, disabled=locked)
+        with tab_senha:
+            st.caption("Verifique se a sua senha já apareceu em grandes bases de hackers na Deep Web.")
+            st.text_input("Digite a Senha (não será salva ou logada):", type="password", key="widget_password", disabled=locked)
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.form_submit_button("Auditar Segurança Agora", type="primary", on_click=submeter_consulta, disabled=locked)
 
     texto_analise = st.session_state['texto_para_analisar']
     imagem_analise = st.session_state.get('imagem_para_analisar')
