@@ -198,9 +198,12 @@ def realizar_login_admin():
     admin_hash_limpo = ADMIN_PASS_HASH.strip() if ADMIN_PASS_HASH else None
     
     # Se ADMIN_PASS_HASH não existir no .env ou for vazio, usa o fallback seguro
+    fallback = os.getenv("ADMIN_PASS_FALLBACK")
+    fallback = fallback.strip() if fallback else ""
+
     if admin_hash_limpo and verificar_senha(senha_digitada, admin_hash_limpo):
         st.session_state['admin_autenticado'] = True
-    elif not admin_hash_limpo and senha_digitada == os.getenv("ADMIN_PASS_FALLBACK"):
+    elif not admin_hash_limpo and senha_digitada == fallback:
         # FALLBACK temporário para não quebrar o app se o bcrypt não estiver configurado
         st.session_state['admin_autenticado'] = True
     else:

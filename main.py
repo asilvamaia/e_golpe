@@ -18,6 +18,7 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 def get_api_key(api_key_header: str = Security(api_key_header)):
     expected_api_key = os.environ.get("API_KEY_SECRET")
+    expected_api_key = expected_api_key.strip() if expected_api_key else None
     # Se a variável API_KEY_SECRET não estiver configurada no Railway, a API fica 'aberta' temporariamente (fallback)
     if not expected_api_key:
         return True
