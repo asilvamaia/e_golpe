@@ -449,6 +449,7 @@ else:
     with st.form(key='form_verificacao'):
         locked = st.session_state['processing']
         st.caption("Verifique um site, mensagem, chave PIX, ou envie um print:")
+        st.info("💡 **Sobre Chaves PIX:** A IA não identifica o dono de *chaves aleatórias* por padrão, mas **analisa o texto da mensagem completa** (urgência, falsos sequestros) para alertar se é golpe.")
         
         col1, col2 = st.columns([3, 1])
         with col1:

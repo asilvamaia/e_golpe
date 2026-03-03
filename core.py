@@ -23,9 +23,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 from colorama import init, Fore, Style
 
-# --- ATUALIZAÇÃO DO SDK DO GOOGLE ---
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from database.db import SessionLocal
 from database.models import Usuario, DatasetItem, Feedback, DomainList, AmeacaCache
@@ -112,10 +111,11 @@ def configurar_ia():
         return
     
     try:
-        CLIENTE_IA = genai.Client(api_key=GOOGLE_AI_KEY)
-        registrar_log(f"IA conectada (Cliente iniciado): {MODELO_NOME}", "INFO")
+        genai.configure(api_key=GOOGLE_AI_KEY)
+        CLIENTE_IA = genai.GenerativeModel(MODELO_NOME)
+        registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
     except Exception as e:
-        registrar_log(f"Falha ao iniciar cliente IA: {e}", "ALERTA")
+        registrar_log(f"Falha ao iniciar modelo IA: {e}", "ALERTA")
 
 # --- 2. GERENCIAMENTO DE LISTAS ---
 
@@ -689,31 +689,16 @@ async def analisar_com_ia(url, dados_completos, origem="streamlit", metadados=No
     """
     try:
         # Configuração de segurança usando a nova API
-        config_seguranca = types.GenerateContentConfig(
-            safety_settings=[
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-            ]
-        )
+        config_seguranca = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+        }
 
-        resp = CLIENTE_IA.models.generate_content(
-            model=MODELO_NOME,
-            contents=prompt,
-            config=config_seguranca
+        resp = CLIENTE_IA.generate_content(
+            prompt,
+            safety_settings=config_seguranca
         )
         
         # --- VERIFICAÇÃO DE RESPOSTA VAZIA (Correção do Bug) ---
@@ -778,31 +763,16 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
     Responda em Markdown.
     """
     try:
-        config_seguranca = types.GenerateContentConfig(
-            safety_settings=[
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-            ]
-        )
+        config_seguranca = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+        }
 
-        resp = CLIENTE_IA.models.generate_content(
-            model=MODELO_NOME,
-            contents=prompt,
-            config=config_seguranca
+        resp = CLIENTE_IA.generate_content(
+            prompt,
+            safety_settings=config_seguranca
         )
         
         if not resp.text:
@@ -837,28 +807,14 @@ async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streaml
 
     try:
         # Usando a API do Gemini 1.5/2.0 para upload de conteúdo multi modal
-        config_seguranca = types.GenerateContentConfig(
-            safety_settings=[
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE
-                ),
-            ]
-        )
+        config_seguranca = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
+        }
         
-        instrucoes = montar_instrucoes_formato(origem, score=60, classificacao="ANÁLISE INICIAL", fatores=["Imagem analisada"], alerta_sensivel=None)
+        instrucoes = montar_instrucoes_formato(origem, 60, "ANÁLISE INICIAL", ["Imagem analisada"], None)
         
         prompt_completo = f"""
         {INSTRUCOES_SISTEMA}
@@ -876,16 +832,15 @@ async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streaml
         Responda em Markdown, com formato empático.
         """
 
-        # Envia a parte em texto + a parte em imagem raw (suportado pela nova API client do genai)
+        # Envia a parte em texto + imagem compativel com google.generativeai (lista de partes)
         parts = [
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            {'mime_type': mime_type, 'data': image_bytes},
             prompt_completo
         ]
 
-        resp = CLIENTE_IA.models.generate_content(
-            model=MODELO_NOME,
-            contents=parts,
-            config=config_seguranca
+        resp = CLIENTE_IA.generate_content(
+            parts,
+            safety_settings=config_seguranca
         )
         
         if not resp.text:
