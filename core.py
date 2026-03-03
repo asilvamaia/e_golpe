@@ -756,6 +756,11 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
     <instrucao_especial>
     Se for notícia VERDADEIRA, conversa normal ou saudação: Veredito SEGURO, Score 100.
     Se for boato sem fonte: ALERTA (FAKE NEWS), Score Baixo.
+    
+    REGRAS ESPECÍFICA DE ALVARÁ: Se a mensagem mencionar um "Alvará de Liberação de Pagamento", "Guia de Recolhimento" ou pedir pra pagar "taxas judiciais/custas" para liberar um valor maior de processo:
+    * OBRIGATORIAMENTE CLASSIFIQUE COMO ALERTA/GOLPE dependendo do contexto.
+    * Explique que golpistas se passam pelo verdadeiro advogado (roubando a logo e nome dele).
+    * Instrua a vítima: "NÃO REALIZE PAGAMENTOS ANTECIPADOS PARA RECEBER VALORES. Entre em contato com seu advogado APENAS por uma ligação telefônica para o número oficial dele que você já possuía antes e NÃO pelo número que te enviou esta mensagem."
     </instrucao_especial>
     Msg: {texto_seguro}
     {fake_blk}
@@ -802,15 +807,16 @@ async def checar_senha_vazada(senha: str) -> bool:
 
 # --- 9. VISÃO COMPUTACIONAL (OCR GEMINI) ---
 
-async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streamlit", metadados=None):
-    """Analisa uma imagem enviada pelo usuário buscando conteúdo malicioso via OCR multi-modal."""
-    registrar_log("Analisando Imagem (OCR)...", "INFO")
+async def analisar_arquivo_ia(file_bytes: bytes, mime_type: str, origem="streamlit", metadados=None):
+    """Analisa um arquivo (imagem ou PDF) enviado pelo usuário buscando conteúdo malicioso ou analisando documentos jurídicos."""
+    is_pdf = mime_type == "application/pdf"
+    log_msg = "Analisando Arquivo (PDF)..." if is_pdf else "Analisando Imagem (OCR)..."
+    registrar_log(log_msg, "INFO")
     
     if not CLIENTE_IA: configurar_ia()
     if not CLIENTE_IA: return "⚠️ IA Offline (Erro de conexão)."
 
     try:
-        # Usando a API do Gemini 1.5/2.0 para upload de conteúdo multi modal
         config_seguranca = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -818,27 +824,60 @@ async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streaml
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
         }
         
-        instrucoes = montar_instrucoes_formato(origem, 60, "ANÁLISE INICIAL", ["Imagem analisada"], None)
+        info_assinatura = ""
+        if is_pdf:
+            try:
+                import fitz
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                assinaturas = []
+                for page in doc:
+                    for widget in page.widgets():
+                        if widget.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE:
+                            val = widget.field_value
+                            if val:
+                                assinaturas.append(str(val))
+                            else:
+                                assinaturas.append("Assinatura Digital Presente (Campo Reservado)")
+                
+                if assinaturas:
+                    info_assinatura = f"\n\n**Metadados de Assinatura Extraídos do PDF (Via PyMuPDF):**\n" + "\n".join(f"- {a}" for a in assinaturas)
+                else:
+                    info_assinatura = "\n\n*Nota Técnica: Nenhuma assinatura criptográfica embutida foi detectada nos metadados do arquivo.*"
+            except Exception as e:
+                registrar_log(f"Erro ao ler assinaturas PDF com PyMuPDF: {e}", "ALERTA")
+
+        instrucoes = montar_instrucoes_formato(origem, 60, "ANÁLISE INICIAL", ["Arquivo analisado"], None)
         
         prompt_completo = f"""
         {INSTRUCOES_SISTEMA}
         
-        Você recebeu um 'print de tela' ou 'foto'.
-        Sua tarefa é ler atentamente TUDO o que está na tela (OCR) e analisar se há indícios de Fraude ou Fake News.
-        Se atente para:
-        - Boletos e Códigos de Barras falsos.
-        - Mensagens de "Parentes pedindo dinheiro" no WhatsApp ou SMS.
-        - Ofertas boas demais para ser verdade.
-        - Notificações falsas de "Conta Bloqueada" (bancos, redes sociais).
+        Você recebeu um arquivo ({'PDF Documento' if is_pdf else 'Print de tela / Foto'}).
+        Sua tarefa é ler atentamente TUDO o que está na tela/documento e analisar se há indícios de Fraude ou Fake News.
+        
+        Se for um DOCUMENTO JURÍDICO ou OFICIAL (Petição, Sentença, Notificação, OAB, Receita Federal, Tribunal de Justiça):
+        - Verifique a autenticidade aparente. Erros grosseiros de formatação, brasões mal recortados ou português ruim são fortes indícios de fraude judiciária.
+        - Identifique QUEM emitiu o documento e QUEM assinou (informações e nomes).
+        - Cruze a leitura do documento com os metadados extraídos abaixo:
+        {info_assinatura}
+        - Informe ao usuário de forma muito clara se as assinaturas conferem.
+        - REGRAS ESPECÍFICA DE ALVARÁ: Se for um "Alvará de Liberação de Pagamento", "Guia de Recolhimento" ou documento pedindo pra pagar "taxas judiciais/custas" para liberar um valor maior:
+            * OBRIGATORIAMENTE CLASSIFIQUE COMO ALERTA/GOLPE dependendo do contexto.
+            * Explique que golpistas se passam pelo verdadeiro advogado (roubando a logo e nome dele).
+            * Instrua a vítima: "NÃO REALIZE PAGAMENTOS ANTECIPADOS PARA RECEBER VALORES. Entre em contato com seu advogado APENAS por uma ligação telefônica para o número oficial dele que você já possuía antes e NÃO pelo número que te enviou esta mensagem."
+        
+        Se for uma IMAGEM/PRINT comum:
+        - Se atente para Boletos falsos, códigos PIX inválidos.
+        - Mensagens de "Parentes pedindo dinheiro" no WhatsApp.
+        - Ofertas muito irreais.
+        - Falsos bloqueios de conta.
         
         {instrucoes}
         
-        Responda em Markdown, com formato empático.
+        Responda em Markdown, sendo muito empático, e caso seja um documento legal falso alerte com máxima ênfase (GOLPE / FALSO / ADULTERADO).
         """
 
-        # Envia a parte em texto + imagem compativel com google.generativeai (lista de partes)
         parts = [
-            {'mime_type': mime_type, 'data': image_bytes},
+            {'mime_type': mime_type, 'data': file_bytes},
             prompt_completo
         ]
 
@@ -850,9 +889,8 @@ async def analisar_imagem_ia(image_bytes: bytes, mime_type: str, origem="streaml
         if not resp.text:
              raise ValueError("Resposta bloqueada pelo filtro.")
 
-        salvar_no_dataset({"input": "UPLOAD_IMAGEM_OCR", "tipo": mime_type}, resp.text, metadados)
+        salvar_no_dataset({"input": "UPLOAD_ARQUIVO", "tipo": mime_type}, resp.text, metadados)
         return resp.text
     except Exception as e:
-        registrar_log(f"Erro IA OCR: {e}", "ERRO")
-        return f"Desculpe, não consegui processar a imagem. Um erro interno ocorreu."
-
+        registrar_log(f"Erro IA Arquivo: {e}", "ERRO")
+        return f"Desculpe, não consegui processar o arquivo. Um erro interno ocorreu. Detalhe técnico: {e}"

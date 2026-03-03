@@ -20,7 +20,7 @@ from core import (
     desencurtar_link,
     registrar_log,
     checar_senha_vazada,
-    analisar_imagem_ia,
+    analisar_arquivo_ia,
     LOG_FILE
 )
 from database.db import SessionLocal
@@ -499,8 +499,8 @@ else:
             st.text_area("Cole a mensagem suspeita, o site ou a chave PIX:", height=100, placeholder="Exemplo: 'Mãe me manda um pix pra essa chave nova...' ou 'http://site-promocao.com'", key="widget_input", disabled=locked)
             
         with tab_imagem:
-            st.caption("Faça o upload de uma captura de tela (Print) para a Inteligência Artificial ler.")
-            st.file_uploader("Selecione a Imagem", type=['png', 'jpg', 'jpeg'], key="widget_image", disabled=locked, label_visibility="collapsed")
+            st.caption("Faça o upload de uma captura de tela (Print) ou Arquivo PDF para a Inteligência Artificial ler e analisar sentenças/petições.")
+            st.file_uploader("Selecione a Imagem ou PDF", type=['png', 'jpg', 'jpeg', 'pdf'], key="widget_image", disabled=locked, label_visibility="collapsed")
             
         with tab_senha:
             st.caption("Verifique se a sua senha já apareceu em grandes bases de hackers na Deep Web.")
@@ -551,10 +551,10 @@ else:
                     """
                     
             elif imagem_analise:
-                status_box.markdown(f"<div class='status-card'>👁️ IA extraindo texto e analisando imagem...</div>", unsafe_allow_html=True)
+                status_box.markdown(f"<div class='status-card'>👁️ IA extraindo texto e metadados analíticos do arquivo...</div>", unsafe_allow_html=True)
                 img_bytes = imagem_analise.getvalue()
                 mime_type = imagem_analise.type
-                resultado_final = asyncio.run(analisar_imagem_ia(img_bytes, mime_type, origem="streamlit", metadados=meta_web))
+                resultado_final = asyncio.run(analisar_arquivo_ia(img_bytes, mime_type, origem="streamlit", metadados=meta_web))
 
             elif texto_analise:
                 if url_check:
