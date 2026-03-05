@@ -116,50 +116,6 @@ def configurar_visual_ios():
         /* Esconde Instruções Padrão */
         [data-testid="InputInstructions"] { display: none !important; }
         div[data-testid="InputInstructions"] { display: none !important; }
-        
-        /* Centraliza e estiliza o Expander de Acessibilidade como um botão */
-        [data-testid="stExpander"] {
-            border: none !important;
-            box-shadow: none !important;
-            background: transparent !important;
-        }
-        [data-testid="stExpander"] details summary {
-            border: 1px solid var(--ios-button) !important;
-            border-radius: 12px !important;
-            height: 50px !important;
-            background-color: transparent !important;
-            color: var(--ios-button) !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-        }
-        [data-testid="stExpander"] details summary svg {
-            display: none !important; /* Esconde a setinha do expander */
-        }
-        /* O Streamlit coloca o texto em um parágrafo dentro da tag summary */
-        [data-testid="stExpander"] details summary p {
-            font-size: 24px !important;
-            font-weight: bold !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            text-align: center !important;
-        }
-        /* O container que envolve o P também precisa estar centralizado */
-        [data-testid="stExpander"] details summary > div {
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 100% !important;
-        }
-        
-        [data-testid="stExpanderDetails"] {
-            border: 1px solid rgba(0,0,0,0.1) !important;
-            border-radius: 12px !important;
-            margin-top: 10px;
-            padding: 15px !important;
-            background-color: var(--ios-card);
-        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -809,10 +765,21 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- CONTROLES DE ACESSIBILIDADE VIA EXPANDER ---
-    with st.expander("♿"):
-        st.markdown("<h4 style='text-align: center; margin-top: 0;'>Acessibilidade e Ajustes</h4>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: gray; font-size: 0.9em;'>Opções para melhorar a leitura e interação.</p>", unsafe_allow_html=True)
+    # --- CONTROLES DE ACESSIBILIDADE VIA BOTAO NATIVO ---
+    if 'show_acc_menu' not in st.session_state:
+        st.session_state['show_acc_menu'] = False
+
+    if st.button("♿", type="secondary", use_container_width=True):
+        st.session_state['show_acc_menu'] = not st.session_state['show_acc_menu']
+
+    if st.session_state['show_acc_menu']:
+        # Container visual para parecer com os detalhes de um expander
+        st.markdown(f"""
+        <div style="border: 1px solid var(--ios-button); border-radius: 12px; padding: 15px; background-color: var(--ios-card); margin-bottom: 15px;">
+            <h4 style="text-align: center; margin-top: 0; color: var(--ios-text);">Acessibilidade e Ajustes</h4>
+            <p style="text-align: center; color: gray; font-size: 0.9em;">Opções para melhorar a leitura e interação.</p>
+        </div>
+        """, unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         with c1:
@@ -825,6 +792,7 @@ else:
             st.session_state['narracao_ativa'] = st.toggle("Narração por Voz (Áudio)", value=st.session_state['narracao_ativa'])
             
         st.caption("A narração tocará automaticamente ao término de cada análise para evitar a leitura tátil constante.")
+        st.markdown("<br>", unsafe_allow_html=True)
 
     if st.button("📲 Instalar App", type="secondary", use_container_width=True):
         mostrar_instrucoes_instalacao()
