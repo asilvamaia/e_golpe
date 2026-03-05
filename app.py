@@ -113,23 +113,6 @@ def configurar_visual_ios():
             margin-bottom: 10px;
         }
 
-        /* Modifica o botão de abrir a Sidebar para o Ícone de Acessibilidade */
-        section[data-testid="stSidebarCollapsedControl"] svg,
-        [data-testid="collapsedControl"] svg, 
-        button[kind="header"] svg { 
-            display: none !important; 
-        }
-        
-        section[data-testid="stSidebarCollapsedControl"] button::before,
-        [data-testid="collapsedControl"] button::before,
-        button[kind="header"]::before { 
-            content: "♿" !important;
-            font-size: 24px !important;
-            color: var(--ios-button) !important;
-            display: block !important;
-            text-align: center;
-        }
-
         /* Esconde Instruções Padrão */
         [data-testid="InputInstructions"] { display: none !important; }
         div[data-testid="InputInstructions"] { display: none !important; }
@@ -367,7 +350,34 @@ def get_remote_ip():
 components.html(f"""<script>
     function injectAppleIcon() {{ var head = window.parent.document.getElementsByTagName('head')[0]; var link = window.parent.document.querySelector("link[rel='apple-touch-icon']"); if (!link) {{ link = window.parent.document.createElement('link'); link.rel = 'apple-touch-icon'; head.appendChild(link); }} link.href = '{ICON_URL}'; }}
     function manageInstallButton() {{ const isDesktop = window.parent.innerWidth > 768; const isStandalone = window.parent.matchMedia('(display-mode: standalone)').matches || window.parent.navigator.standalone === true; if (isDesktop || isStandalone) {{ const buttons = window.parent.document.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
-    injectAppleIcon(); setInterval(manageInstallButton, 1000);
+    
+    function changeSidebarIcon() {{
+        // Procura por botões de header/collapsed sidebar p/ mudar SVG
+        const buttons = window.parent.document.querySelectorAll('button[kind="header"]');
+        buttons.forEach(btn => {{
+            const svg = btn.querySelector('svg');
+            if(svg) {{ 
+                svg.style.display = 'none';
+                
+                // Se já não inserimos nosso span, inserimos
+                if(!btn.querySelector('.custom-acc-icon')) {{
+                    const spanIcon = window.parent.document.createElement('span');
+                    spanIcon.className = 'custom-acc-icon';
+                    spanIcon.innerHTML = '♿';
+                    spanIcon.style.fontSize = '24px';
+                    spanIcon.style.color = '#007AFF';
+                    spanIcon.style.display = 'flex';
+                    spanIcon.style.alignItems = 'center';
+                    spanIcon.style.justifyContent = 'center';
+                    btn.appendChild(spanIcon);
+                }}
+            }}
+        }});
+    }}
+    
+    injectAppleIcon(); 
+    setInterval(manageInstallButton, 1000);
+    setInterval(changeSidebarIcon, 1000);
     </script>""", height=0)
 
 # --- INTERFACE PRINCIPAL ---
