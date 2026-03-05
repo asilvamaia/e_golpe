@@ -116,6 +116,39 @@ def configurar_visual_ios():
         /* Esconde Instruções Padrão */
         [data-testid="InputInstructions"] { display: none !important; }
         div[data-testid="InputInstructions"] { display: none !important; }
+        
+        /* Centraliza e estiliza o Expander de Acessibilidade como um botão */
+        [data-testid="stExpander"] {
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+        [data-testid="stExpander"] details summary {
+            justify-content: center !important;
+            border: 1px solid var(--ios-button) !important;
+            border-radius: 12px !important;
+            height: 50px !important;
+            background-color: transparent !important;
+            color: var(--ios-button) !important;
+        }
+        [data-testid="stExpander"] details summary p {
+            font-size: 24px !important;
+            font-weight: bold !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        [data-testid="stExpander"] details summary svg {
+            display: none !important; /* Esconde a setinha do expander */
+        }
+        [data-testid="stExpanderDetails"] {
+            border: 1px solid rgba(0,0,0,0.1) !important;
+            border-radius: 12px !important;
+            margin-top: 10px;
+            padding: 15px !important;
+            background-color: var(--ios-card);
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -766,8 +799,9 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
     
     # --- CONTROLES DE ACESSIBILIDADE VIA EXPANDER ---
-    with st.expander("♿ Acessibilidade e Ajustes"):
-        st.markdown("Opções para melhorar a leitura e interação do painel.")
+    with st.expander("♿"):
+        st.markdown("<h4 style='text-align: center; margin-top: 0;'>Acessibilidade e Ajustes</h4>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray; font-size: 0.9em;'>Opções para melhorar a leitura e interação.</p>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         with c1:
