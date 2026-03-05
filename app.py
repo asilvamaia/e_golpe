@@ -124,24 +124,35 @@ def configurar_visual_ios():
             background: transparent !important;
         }
         [data-testid="stExpander"] details summary {
-            justify-content: center !important;
             border: 1px solid var(--ios-button) !important;
             border-radius: 12px !important;
             height: 50px !important;
             background-color: transparent !important;
             color: var(--ios-button) !important;
-        }
-        [data-testid="stExpander"] details summary p {
-            font-size: 24px !important;
-            font-weight: bold !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
         }
         [data-testid="stExpander"] details summary svg {
             display: none !important; /* Esconde a setinha do expander */
         }
+        /* O Streamlit coloca o texto em um parágrafo dentro da tag summary */
+        [data-testid="stExpander"] details summary p {
+            font-size: 24px !important;
+            font-weight: bold !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: center !important;
+        }
+        /* O container que envolve o P também precisa estar centralizado */
+        [data-testid="stExpander"] details summary > div {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        
         [data-testid="stExpanderDetails"] {
             border: 1px solid rgba(0,0,0,0.1) !important;
             border-radius: 12px !important;
