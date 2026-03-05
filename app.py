@@ -352,15 +352,14 @@ components.html(f"""<script>
     function manageInstallButton() {{ const isDesktop = window.parent.innerWidth > 768; const isStandalone = window.parent.matchMedia('(display-mode: standalone)').matches || window.parent.navigator.standalone === true; if (isDesktop || isStandalone) {{ const buttons = window.parent.document.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
     
     function changeSidebarIcon() {{
-        // Procura por botões de header/collapsed sidebar p/ mudar SVG
-        const buttons = window.parent.document.querySelectorAll('button[kind="header"]');
-        buttons.forEach(btn => {{
-            const svg = btn.querySelector('svg');
+        // Tenta achar o botão de colapsar sidebar especificamente
+        const collapsedBtn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+        if (collapsedBtn) {{
+            const svg = collapsedBtn.querySelector('svg');
             if(svg) {{ 
                 svg.style.display = 'none';
                 
-                // Se já não inserimos nosso span, inserimos
-                if(!btn.querySelector('.custom-acc-icon')) {{
+                if(!collapsedBtn.querySelector('.custom-acc-icon')) {{
                     const spanIcon = window.parent.document.createElement('span');
                     spanIcon.className = 'custom-acc-icon';
                     spanIcon.innerHTML = '♿';
@@ -369,6 +368,27 @@ components.html(f"""<script>
                     spanIcon.style.display = 'flex';
                     spanIcon.style.alignItems = 'center';
                     spanIcon.style.justifyContent = 'center';
+                    
+                    // Se o botão tem filhos, tenta adicionar o span
+                    collapsedBtn.appendChild(spanIcon);
+                }}
+            }}
+        }}
+
+        // Também procura no botão interno do header caso não esteja colapsada
+        const headerButtons = window.parent.document.querySelectorAll('button[kind="header"]');
+        headerButtons.forEach(btn => {{
+            const svg = btn.querySelector('svg');
+            if(svg && !svg.classList.contains('acc-hidden')) {{ 
+                svg.classList.add('acc-hidden');
+                svg.style.display = 'none';
+                
+                if(!btn.querySelector('.custom-acc-icon')) {{
+                    const spanIcon = window.parent.document.createElement('span');
+                    spanIcon.className = 'custom-acc-icon';
+                    spanIcon.innerHTML = '♿';
+                    spanIcon.style.fontSize = '24px';
+                    spanIcon.style.color = '#007AFF';
                     btn.appendChild(spanIcon);
                 }}
             }}
