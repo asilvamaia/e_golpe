@@ -113,6 +113,17 @@ def configurar_visual_ios():
             margin-bottom: 10px;
         }
 
+        /* Modifica o botão de abrir a Sidebar para o Ícone de Acessibilidade */
+        [data-testid="collapsedControl"] svg { display: none !important; }
+        [data-testid="collapsedControl"]::before { 
+            content: "♿"; 
+            font-size: 26px; 
+            color: var(--ios-button); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         /* Esconde Instruções Padrão */
         [data-testid="InputInstructions"] { display: none !important; }
         div[data-testid="InputInstructions"] { display: none !important; }
@@ -233,6 +244,7 @@ if 'processing' not in st.session_state: st.session_state['processing'] = False
 # Acessibilidade
 if 'modo_alto_contraste' not in st.session_state: st.session_state['modo_alto_contraste'] = False
 if 'narracao_ativa' not in st.session_state: st.session_state['narracao_ativa'] = False
+if 'ultimo_audio_falado' not in st.session_state: st.session_state['ultimo_audio_falado'] = ""
 
 # --- LÓGICA DE LOGIN ADMIN ---
 MAGIC_WORD = os.getenv("MAGIC_WORD", "Ck90t&c@@") # Fallback se não setado
@@ -738,16 +750,22 @@ else:
 
         # Narração (Acessibilidade)
         if st.session_state.get('narracao_ativa', False):
-            try:
-                texto_falado = f"Veredito: {ver}. Segurança: {score} de 100. " + re.sub(r'[*_#`]', '', clean_txt)
-                tts = gTTS(text=texto_falado, lang='pt', slow=False)
-                
-                # Usar NamedTemporaryFile para gerar o MP3 sem salvar permanentemente no servidor
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as t_file:
-                    tts.save(t_file.name)
-                    st.audio(t_file.name, format="audio/mpeg", autoplay=True)
-            except Exception as e:
-                st.error(f"Erro na narração: {e}")
+            texto_falado = f"Veredito: {ver}. Segurança: {score} de 100. " + re.sub(r'[*_#`:]', '', clean_txt)
+            
+            # Evita o "looping" quando a tela é recarregada pelo usuário interagindo com outros botões
+            if st.session_state.get('ultimo_audio_falado') != texto_falado:
+                try:
+                    tts = gTTS(text=texto_falado, lang='pt', slow=False)
+                    
+                    # Usar NamedTemporaryFile para gerar o MP3 sem salvar permanentemente no servidor
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as t_file:
+                        tts.save(t_file.name)
+                        st.audio(t_file.name, format="audio/mpeg", autoplay=True)
+                    
+                    # Marca como já falado
+                    st.session_state['ultimo_audio_falado'] = texto_falado
+                except Exception as e:
+                    st.error(f"Erro na narração: {e}")
 
         if st.session_state.get('dados_tecnicos_cache'):
             d = st.session_state['dados_tecnicos_cache']
