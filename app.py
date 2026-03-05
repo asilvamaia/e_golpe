@@ -114,14 +114,20 @@ def configurar_visual_ios():
         }
 
         /* Modifica o botão de abrir a Sidebar para o Ícone de Acessibilidade */
-        [data-testid="collapsedControl"] svg { display: none !important; }
-        [data-testid="collapsedControl"]::before { 
-            content: "♿"; 
-            font-size: 26px; 
-            color: var(--ios-button); 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        section[data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="collapsedControl"] svg, 
+        button[kind="header"] svg { 
+            display: none !important; 
+        }
+        
+        section[data-testid="stSidebarCollapsedControl"] button::before,
+        [data-testid="collapsedControl"] button::before,
+        button[kind="header"]::before { 
+            content: "♿" !important;
+            font-size: 24px !important;
+            color: var(--ios-button) !important;
+            display: block !important;
+            text-align: center;
         }
 
         /* Esconde Instruções Padrão */
