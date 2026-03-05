@@ -35,6 +35,27 @@ body {
     color: #a0aab5;
 }
 
+.accessibility-controls {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #e0e0e0;
+    cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
 button {
     width: 100%;
     padding: 12px;

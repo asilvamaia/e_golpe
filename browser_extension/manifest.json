@@ -5,7 +5,8 @@
   "description": "Analisa se a página atual é um ambiente seguro usando a inteligência do Guardian Bot.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tts"
   ],
   "action": {
     "default_popup": "popup.html"

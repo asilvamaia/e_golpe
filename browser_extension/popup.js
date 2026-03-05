@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const resultDiv = document.getElementById('result');
     const verdictEl = document.getElementById('verdict');
     const analysisTextEl = document.getElementById('analysis-text');
+    const voiceToggle = document.getElementById('voice-toggle');
 
     // Pegar a URL da aba ativa
     let activeUrl = "";
@@ -28,6 +29,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         analyzeBtn.classList.add('hidden');
         loadingDiv.classList.remove('hidden');
         resultDiv.classList.add('hidden');
+
+        // Stop any ongoing TTS
+        if (chrome.tts) {
+            chrome.tts.stop();
+        }
 
         try {
             const response = await fetch(API_URL, {
@@ -85,7 +91,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         textClean = textClean.replace(/:green\[(.*?)\]/g, '$1'); // Limpeza customizada Streamlit
         textClean = textClean.replace(/:red\[(.*?)\]/g, '$1');
 
+        // O texto extraído já removeu as tags e negritos, fica bem melhor para a leitura de TTS.
+        let plainTextSpeech = textClean.replace(/#/g, '');
+
         // Adicionar quebras de linha em HTML
         analysisTextEl.innerHTML = textClean.split('\n').join('<br>');
+
+        // Narrar Resultado se o toggle estiver ativo
+        if (voiceToggle.checked && chrome.tts) {
+            let spokenVerdict = verdictEl.textContent.replace(/✅|🚨|⚠️|ℹ️/g, "").trim();
+            let msgToSpeak = spokenVerdict + ". " + plainTextSpeech;
+            chrome.tts.speak(msgToSpeak, { 'lang': 'pt-BR', 'rate': 1.1 });
+        }
     }
 });

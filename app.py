@@ -7,6 +7,13 @@ import os
 import re
 from datetime import datetime
 import asyncio
+# Para narração por voz (Acessibilidade)
+try:
+    from gtts import gTTS
+    import tempfile
+except ImportError:
+    pass
+
 from core import (
     extrair_url, 
     validar_seguranca_url, 
@@ -112,6 +119,33 @@ def configurar_visual_ios():
         </style>
     """, unsafe_allow_html=True)
 
+    # Injetor Dinâmico de Alto Contraste
+    if st.session_state.get('modo_alto_contraste', False):
+        st.markdown("""
+            <style>
+            :root { 
+                --ios-bg: #000000 !important; 
+                --ios-card: #000000 !important; 
+                --ios-text: #FFFF00 !important; 
+                --ios-button: #FFFF00 !important; 
+            }
+            .stApp, .status-card, .result-box, div[data-baseweb="input"] { 
+                background-color: #000000 !important;
+                color: #FFFF00 !important;
+                border: 2px solid #FFFF00 !important;
+                font-size: 110% !important;
+            }
+            .verdict-title, .result-box div { color: #FFFF00 !important; }
+            div.stButton > button {
+                background-color: #000000 !important;
+                color: #FFFF00 !important;
+                border: 2px solid #FFFF00 !important;
+                font-weight: 900 !important;
+            }
+            .text-safe, .text-warning, .text-danger { color: #FFFF00 !important; }
+            </style>
+        """, unsafe_allow_html=True)
+
 configurar_visual_ios()
 
 # --- FUNÇÕES DE UTILS E SEGURANÇA ---
@@ -195,6 +229,10 @@ if 'feedback_enviado' not in st.session_state: st.session_state['feedback_enviad
 if 'modo_admin' not in st.session_state: st.session_state['modo_admin'] = False
 if 'admin_autenticado' not in st.session_state: st.session_state['admin_autenticado'] = False
 if 'processing' not in st.session_state: st.session_state['processing'] = False
+
+# Acessibilidade
+if 'modo_alto_contraste' not in st.session_state: st.session_state['modo_alto_contraste'] = False
+if 'narracao_ativa' not in st.session_state: st.session_state['narracao_ativa'] = False
 
 # --- LÓGICA DE LOGIN ADMIN ---
 MAGIC_WORD = os.getenv("MAGIC_WORD", "Ck90t&c@@") # Fallback se não setado
@@ -484,6 +522,23 @@ if st.session_state['modo_admin']:
                     db.close()
 
 else:
+    # --- BARRA LATERAL (ACESSIBILIDADE) ---
+    with st.sidebar:
+        st.header("♿ Acessibilidade")
+        st.markdown("Ajustes para facilitar a leitura e uso.")
+        
+        # Toggle: Alto Contraste
+        modo_contraste = st.toggle("Modo Alto Contraste", value=st.session_state['modo_alto_contraste'])
+        if modo_contraste != st.session_state['modo_alto_contraste']:
+            st.session_state['modo_alto_contraste'] = modo_contraste
+            st.rerun()
+
+        # Toggle: Narração por Voz
+        st.session_state['narracao_ativa'] = st.toggle("Narração por Voz do Resultado", value=st.session_state['narracao_ativa'])
+        
+        st.markdown("---")
+        st.caption("A narração por voz tocará automaticamente ao término de uma análise.")
+
     st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>🛡️ É Golpe?</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: gray; margin-top: -10px; font-size: 1rem;'>IA contra Fraudes Digitais</h3>", unsafe_allow_html=True)
 
@@ -680,6 +735,19 @@ else:
             </div>
             <div style="font-size: 16px; line-height: 1.6; color: var(--ios-text);">{clean_txt.replace(chr(10), '<br>')}</div>
         </div>""", unsafe_allow_html=True)
+
+        # Narração (Acessibilidade)
+        if st.session_state.get('narracao_ativa', False):
+            try:
+                texto_falado = f"Veredito: {ver}. Segurança: {score} de 100. " + re.sub(r'[*_#`]', '', clean_txt)
+                tts = gTTS(text=texto_falado, lang='pt', slow=False)
+                
+                # Usar NamedTemporaryFile para gerar o MP3 sem salvar permanentemente no servidor
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as t_file:
+                    tts.save(t_file.name)
+                    st.audio(t_file.name, format="audio/mpeg", autoplay=True)
+            except Exception as e:
+                st.error(f"Erro na narração: {e}")
 
         if st.session_state.get('dados_tecnicos_cache'):
             d = st.session_state['dados_tecnicos_cache']

@@ -12,16 +12,23 @@
     </div>
     
     <div class="container">
-        <p id="current-url" class="url-display">Carregando URL...</p>
+        <p id="current-url" class="url-display" aria-live="polite">Carregando URL...</p>
         
-        <button id="analyze-btn">🛡️ Analisar Página Atual</button>
+        <div class="accessibility-controls">
+            <label for="voice-toggle" class="toggle-label" aria-label="Ativar narração por voz do resultado">
+                <input type="checkbox" id="voice-toggle" checked>
+                🔊 Narração por Voz
+            </label>
+        </div>
+
+        <button id="analyze-btn" aria-label="Analisar a segurança da página atual">🛡️ Analisar Página Atual</button>
         
         <div id="loading" class="hidden">
             <div class="spinner"></div>
             <p>A IA está analisando a página...</p>
         </div>
 
-        <div id="result" class="hidden">
+        <div id="result" class="hidden" aria-live="assertive">
             <h3 id="verdict"></h3>
             <div id="analysis-text"></div>
         </div>
