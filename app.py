@@ -351,53 +351,8 @@ components.html(f"""<script>
     function injectAppleIcon() {{ var head = window.parent.document.getElementsByTagName('head')[0]; var link = window.parent.document.querySelector("link[rel='apple-touch-icon']"); if (!link) {{ link = window.parent.document.createElement('link'); link.rel = 'apple-touch-icon'; head.appendChild(link); }} link.href = '{ICON_URL}'; }}
     function manageInstallButton() {{ const isDesktop = window.parent.innerWidth > 768; const isStandalone = window.parent.matchMedia('(display-mode: standalone)').matches || window.parent.navigator.standalone === true; if (isDesktop || isStandalone) {{ const buttons = window.parent.document.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
     
-    function changeSidebarIcon() {{
-        // Tenta achar o botão de colapsar sidebar especificamente
-        const collapsedBtn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-        if (collapsedBtn) {{
-            const svg = collapsedBtn.querySelector('svg');
-            if(svg) {{ 
-                svg.style.display = 'none';
-                
-                if(!collapsedBtn.querySelector('.custom-acc-icon')) {{
-                    const spanIcon = window.parent.document.createElement('span');
-                    spanIcon.className = 'custom-acc-icon';
-                    spanIcon.innerHTML = '♿';
-                    spanIcon.style.fontSize = '24px';
-                    spanIcon.style.color = '#007AFF';
-                    spanIcon.style.display = 'flex';
-                    spanIcon.style.alignItems = 'center';
-                    spanIcon.style.justifyContent = 'center';
-                    
-                    // Se o botão tem filhos, tenta adicionar o span
-                    collapsedBtn.appendChild(spanIcon);
-                }}
-            }}
-        }}
-
-        // Também procura no botão interno do header caso não esteja colapsada
-        const headerButtons = window.parent.document.querySelectorAll('button[kind="header"]');
-        headerButtons.forEach(btn => {{
-            const svg = btn.querySelector('svg');
-            if(svg && !svg.classList.contains('acc-hidden')) {{ 
-                svg.classList.add('acc-hidden');
-                svg.style.display = 'none';
-                
-                if(!btn.querySelector('.custom-acc-icon')) {{
-                    const spanIcon = window.parent.document.createElement('span');
-                    spanIcon.className = 'custom-acc-icon';
-                    spanIcon.innerHTML = '♿';
-                    spanIcon.style.fontSize = '24px';
-                    spanIcon.style.color = '#007AFF';
-                    btn.appendChild(spanIcon);
-                }}
-            }}
-        }});
-    }}
-    
     injectAppleIcon(); 
     setInterval(manageInstallButton, 1000);
-    setInterval(changeSidebarIcon, 1000);
     </script>""", height=0)
 
 # --- INTERFACE PRINCIPAL ---
@@ -570,23 +525,6 @@ if st.session_state['modo_admin']:
                     db.close()
 
 else:
-    # --- BARRA LATERAL (ACESSIBILIDADE) ---
-    with st.sidebar:
-        st.header("♿ Acessibilidade")
-        st.markdown("Ajustes para facilitar a leitura e uso.")
-        
-        # Toggle: Alto Contraste
-        modo_contraste = st.toggle("Modo Alto Contraste", value=st.session_state['modo_alto_contraste'])
-        if modo_contraste != st.session_state['modo_alto_contraste']:
-            st.session_state['modo_alto_contraste'] = modo_contraste
-            st.rerun()
-
-        # Toggle: Narração por Voz
-        st.session_state['narracao_ativa'] = st.toggle("Narração por Voz do Resultado", value=st.session_state['narracao_ativa'])
-        
-        st.markdown("---")
-        st.caption("A narração por voz tocará automaticamente ao término de uma análise.")
-
     st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>🛡️ É Golpe?</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: gray; margin-top: -10px; font-size: 1rem;'>IA contra Fraudes Digitais</h3>", unsafe_allow_html=True)
 
@@ -826,6 +764,23 @@ else:
             st.caption("Feedback enviado. Obrigado!")
 
     st.markdown("<br>", unsafe_allow_html=True)
+    
+    # --- CONTROLES DE ACESSIBILIDADE VIA EXPANDER ---
+    with st.expander("♿ Acessibilidade e Ajustes"):
+        st.markdown("Opções para melhorar a leitura e interação do painel.")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            modo_contraste = st.toggle("Modo Alto Contraste", value=st.session_state['modo_alto_contraste'])
+            if modo_contraste != st.session_state['modo_alto_contraste']:
+                st.session_state['modo_alto_contraste'] = modo_contraste
+                st.rerun()
+                
+        with c2:
+            st.session_state['narracao_ativa'] = st.toggle("Narração por Voz (Áudio)", value=st.session_state['narracao_ativa'])
+            
+        st.caption("A narração tocará automaticamente ao término de cada análise para evitar a leitura tátil constante.")
+
     if st.button("📲 Instalar App", type="secondary", use_container_width=True):
         mostrar_instrucoes_instalacao()
     
