@@ -51,7 +51,7 @@ def configurar_visual_ios():
         .stApp { background-color: var(--ios-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         
         /* Layout Limpo */
-        #MainMenu, footer, header {visibility: hidden;}
+        footer {visibility: hidden;}
         .block-container { padding-top: 2rem; padding-bottom: 5rem; }
         
         /* Inputs */
