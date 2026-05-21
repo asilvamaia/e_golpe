@@ -58,9 +58,20 @@ def configurar_visual_ios():
         div[data-baseweb="input"] { background-color: var(--ios-card) !important; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); }
         
         /* Botões */
-        div.stButton > button[kind="primary"] { background-color: var(--ios-button) !important; color: white !important; border-radius: 12px; height: 50px; font-weight: 600; font-size: 16px; border: none; width: 100%; }
+        div.stButton > button[kind="primary"], div[data-testid="stFormSubmitButton"] > button { background-color: var(--ios-button) !important; color: white !important; border-radius: 12px; height: 50px; font-weight: 600; font-size: 16px; border: none; width: 100%; }
         div.stButton > button[kind="secondary"] { background-color: transparent !important; border: 1px solid #ddd !important; color: #333 !important; border-radius: 12px; height: 45px; }
         @media (prefers-color-scheme: dark) { div.stButton > button[kind="secondary"] { color: white !important; border-color: #444 !important; } }
+        
+        /* Centralizar o botão de submissão do formulário (Auditar Segurança Agora) */
+        div[data-testid="stFormSubmitButton"] {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        div[data-testid="stFormSubmitButton"] > button {
+            width: 100% !important;
+            max-width: 300px;
+        }
         
         /* Componentes Customizados */
         .status-card { background-color: var(--ios-card); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; border: 1px solid rgba(0,0,0,0.1); color: var(--ios-text); }
@@ -136,7 +147,7 @@ def configurar_visual_ios():
                 font-size: 110% !important;
             }
             .verdict-title, .result-box div { color: #FFFF00 !important; }
-            div.stButton > button {
+            div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
                 background-color: #000000 !important;
                 color: #FFFF00 !important;
                 border: 2px solid #FFFF00 !important;
@@ -349,7 +360,7 @@ def get_remote_ip():
 # --- INJEÇÃO DE JS ---
 components.html(f"""<script>
     function injectAppleIcon() {{ var head = window.parent.document.getElementsByTagName('head')[0]; var link = window.parent.document.querySelector("link[rel='apple-touch-icon']"); if (!link) {{ link = window.parent.document.createElement('link'); link.rel = 'apple-touch-icon'; head.appendChild(link); }} link.href = '{ICON_URL}'; }}
-    function manageInstallButton() {{ const isDesktop = window.parent.innerWidth > 768; const isStandalone = window.parent.matchMedia('(display-mode: standalone)').matches || window.parent.navigator.standalone === true; if (isDesktop || isStandalone) {{ const buttons = window.parent.document.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
+    function manageInstallButton() {{ const parentWindow = window.parent || window; const isStandalone = parentWindow.matchMedia('(display-mode: standalone)').matches || parentWindow.navigator.standalone === true; if (isStandalone) {{ const doc = parentWindow.document || document; const buttons = doc.getElementsByTagName('button'); for (let btn of buttons) {{ if (btn.innerText.includes('Instalar App')) {{ btn.style.display = 'none'; if (btn.parentElement && btn.parentElement.classList.contains('stButton')) {{ btn.parentElement.style.display = 'none'; }} }} }} }} }}
     
     injectAppleIcon(); 
     setInterval(manageInstallButton, 1000);

@@ -82,27 +82,34 @@ WHITELIST_DEFAULT = ["uol.com.br", "globo.com", "g1.globo.com", "google.com", "g
 
 INSTRUCOES_SISTEMA = """
 Você é o GuardianBot, um especialista em segurança digital. 
-Seu objetivo é analisar mensagens e links suspeitos.
+Seu objetivo é analisar mensagens e links suspeitos para usuários leigos (especialmente idosos).
 
-### ESTRUTURA DA RESPOSTA:
-1. **Veredito:** Inicie estritamente com "Veredito: ALERTA", "Veredito: GOLPE" ou "Veredito: SEGURO" (em negrito).
-2. **Score:** A segunda linha deve conter o Nível de Segurança (ex: 🛡️ Nível de Segurança: 100/100).
-3. **Saudação Empática:** Acolha o usuário.
-4. **Análise:** Explique o cenário.
-5. **Ação:** O que fazer.
+REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
+1. Você NÃO PODE mostrar seu processo de raciocínio, notas, reflexões ("Wait", "Thinking", etc) ou qualquer tipo de metalinguagem.
+2. A resposta DEVE COMEÇAR DIRETAMENTE com o Veredito. NENHUM texto antes, NENHUM texto preparatório.
+3. Não repita os dados técnicos na sua resposta final (ex: não liste URL, Título, SSL).
+4. Siga ESTRITAMENTE o formato abaixo, sem adicionar listas de verificação, notas ocultas ou análises internas.
 
-### REGRAS ESPECÍFICAS:
-- **Hospedagem Gratuita:** Se usar Framer/Vercel e pedir dados, é GOLPE.
-- **Golpes Financeiros:** Score baixo, Veredito GOLPE.
-- **Fake News:** Se alarmista e sem fonte, Veredito ALERTA.
-- **Conteúdo Legítimo:** Notícia real/conversa, Veredito SEGURO, Score 100.
+### FORMATO OBRIGATÓRIO (COMECE DIRETAMENTE POR AQUI):
+**Veredito:** [ALERTA, GOLPE ou SEGURO]
+🛡️ **Nível de Segurança:** [Score]/100
 
-### TOM DE VOZ:
-- Seja calmo, didático e protetor.
+[Sua Saudação Empática e Acolhedora aqui]
+
+**Análise:**
+[Sua explicação simples e didática sobre o site/mensagem aqui]
+
+**Ação:**
+[Ação recomendada para o usuário aqui]
+
+### REGRAS DE AVALIAÇÃO E TOM DE VOZ:
+- Hospedagem Gratuita: Se pedir dados (Framer/Vercel etc), é GOLPE.
+- Fake News: Se for alarmista e não tiver fonte confiável, Veredito ALERTA.
+- Tom de Voz: Muito educado, paciente e acolhedor (como um neto ajudando o avô). Apenas em Português do Brasil.
 """
 
 CLIENTE_IA = None
-MODELO_NOME = 'gemma-3-27b-it' 
+MODELO_NOME = 'gemma-4-31b-it' 
 
 def configurar_ia():
     global CLIENTE_IA
@@ -112,7 +119,7 @@ def configurar_ia():
     
     try:
         genai.configure(api_key=GOOGLE_AI_KEY)
-        CLIENTE_IA = genai.GenerativeModel(MODELO_NOME)
+        CLIENTE_IA = genai.GenerativeModel(MODELO_NOME, system_instruction=INSTRUCOES_SISTEMA)
         registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
     except Exception as e:
         registrar_log(f"Falha ao iniciar modelo IA: {e}", "ALERTA")
@@ -550,8 +557,7 @@ def montar_instrucoes_formato(origem, score, classificacao, fatores_risco, alert
     elif alerta_sensivel == "GOLPE_INSS": aviso_extra = "ALERTA INSS: Governo não manda link por SMS."
     elif alerta_sensivel == "GOLPE_PARENTE": aviso_extra = "ALERTA FAMÍLIA: Ligue para o número antigo."
     
-    diretrizes = "DIRETRIZES DE LINGUAGEM: Fale simples e acolhedor (foco em idosos)."
-    contexto = f"📊 SCORE: {score}/100\nClassificação: {classificacao}\nProblemas:\n{resumo_fatores}\n{aviso_extra}"
+    contexto = f"📊 INFORMAÇÕES TÉCNICAS (Use para embasar sua análise, não repita isto):\nSCORE: {score}/100\nClassificação: {classificacao}\nProblemas: {resumo_fatores}\n{aviso_extra}"
     
     cor_vermelha = False
     if classificacao == "PERIGO" or "FAKE NEWS" in classificacao or score == 0: cor_vermelha = True
@@ -567,7 +573,7 @@ def montar_instrucoes_formato(origem, score, classificacao, fatores_risco, alert
         linha1 = f"**Veredito:** {classificacao}"
         linha2 = f"🛡️ **Nível de Segurança:** {score}/100"
         
-    return f"{contexto}\n{diretrizes}\n⚠️ REGRA VISUAL:\n1. {linha1}\n2. {linha2}\n3. Pule uma linha."
+    return f"{contexto}\n\n⚠️ INSTRUÇÃO CRÍTICA: NÃO ESCREVA NENHUM RACIOCÍNIO, NOTAS DE PENSAMENTO OU LISTAS DE VERIFICAÇÃO. GERE APENAS A RESPOSTA FINAL ESTRITA NO FORMATO SOLICITADO!\n\n⚠️ INICIE A SUA RESPOSTA FINAL IMEDIATAMENTE COM O VEREDITO ASSIM:\n{linha1}\n{linha2}\n\n[Sua Saudação Empática]"
 
 def gerar_resposta_fallback_sensivel(categoria, origem):
     cor = ":orange[**" if origem == "streamlit" else "**⚠️ "
@@ -671,7 +677,6 @@ async def analisar_com_ia(url, dados_completos, origem="streamlit", metadados=No
     score, classificacao, cor_sugerida, fatores = calcular_score_risco(dados_completos, domain_clean)
     instrucoes = montar_instrucoes_formato(origem, score, classificacao, fatores, alerta_sensivel=cat_sensivel)
     prompt = f"""
-    {INSTRUCOES_SISTEMA}
     <instrucao_typosquatting>
     Se for site oficial regional (ex: .ar, .mx) ou marca real, RECLASSIFIQUE para SEGURO.
     Se for variação suspeita (ex: ofertas-latam), MANTENHA GOLPE.
@@ -705,8 +710,9 @@ async def analisar_com_ia(url, dados_completos, origem="streamlit", metadados=No
         if not resp.text:
             raise ValueError("Resposta bloqueada pelo filtro de segurança da IA.")
             
-        salvar_no_dataset(dados_completos, resp.text, metadados)
-        return resp.text
+        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        salvar_no_dataset(dados_completos, texto_final, metadados)
+        return texto_final
     except Exception as e:
         registrar_log(f"Erro IA URL: {e}", "ERRO")
         
@@ -753,7 +759,6 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
     data_hoje = datetime.now().strftime("%d/%m/%Y")
     
     prompt = f"""
-    {INSTRUCOES_SISTEMA}
     Analise esta mensagem. Considere que hoje é {data_hoje}.
     <instrucao_especial>
     Se for notícia VERDADEIRA, conversa normal ou saudação: Veredito SEGURO, Score 100.
@@ -785,8 +790,9 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
         if not resp.text:
              raise ValueError("Resposta bloqueada.")
 
-        salvar_no_dataset({"input": texto_seguro}, resp.text, metadados)
-        return resp.text
+        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        salvar_no_dataset({"input": texto_seguro}, texto_final, metadados)
+        return texto_final
     except Exception as e: return f"Erro IA: {e}"
 
 # --- 8. INTEGRAÇÃO HAVE I BEEN PWNED ---
@@ -894,8 +900,9 @@ async def analisar_arquivo_ia(file_bytes: bytes, mime_type: str, origem="streaml
         if not resp.text:
              raise ValueError("Resposta bloqueada pelo filtro.")
 
-        salvar_no_dataset({"input": "UPLOAD_ARQUIVO", "tipo": mime_type}, resp.text, metadados)
-        return resp.text
+        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        salvar_no_dataset({"input": "UPLOAD_ARQUIVO", "tipo": mime_type}, texto_final, metadados)
+        return texto_final
     except Exception as e:
         registrar_log(f"Erro IA Arquivo: {e}", "ERRO")
         return f"Desculpe, não consegui processar o arquivo. Um erro interno ocorreu. Detalhe técnico: {e}"

@@ -97,11 +97,11 @@ def configurar_ia():
         registrar_log("Chave da IA não encontrada", "ALERTA")
         return
     genai.configure(api_key=GOOGLE_AI_KEY)
-    modelos = ['gemma-3-27b-it']
+    modelos = ['gemma-4-31b-it']
     safety_settings = {HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE, HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE, HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE, HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE}
     for m in modelos:
         try:
-            mod = genai.GenerativeModel(m, safety_settings=safety_settings)
+            mod = genai.GenerativeModel(m, safety_settings=safety_settings, system_instruction=INSTRUCOES_SISTEMA)
             MODELO_IA = mod
             registrar_log(f"IA conectada: {m}", "INFO")
             return
@@ -470,7 +470,7 @@ def montar_instrucoes_formato(origem, score, classificacao, fatores_risco, alert
         linha1 = f"**Veredito:** {emoji} **{classificacao}**"
         linha2 = f"🛡️ **Nível de Segurança:** {score}/100"
         
-    return f"{contexto}\n{diretrizes}\n⚠️ REGRA VISUAL:\n1. {linha1}\n2. {linha2}\n3. Pule uma linha."
+    return f"{contexto}\n{diretrizes}\n⚠️ INSTRUÇÃO CRÍTICA: Se precisar refletir ou fazer rascunho (scratchpad) antes de responder, coloque TODO o seu raciocínio dentro de tags <pensamento> e </pensamento>.\n\n⚠️ REGRA VISUAL PARA A RESPOSTA FINAL (o que fica de fora das tags):\n1. {linha1}\n2. {linha2}\n3. Pule uma linha."
 
 def gerar_resposta_fallback_sensivel(categoria, origem):
     cor = ":orange[**" if origem == "streamlit" else "**⚠️ "
@@ -536,7 +536,6 @@ def analisar_com_ia(url, dados_completos, origem="telegram", metadados=None):
     score, classificacao, cor_sugerida, fatores = calcular_score_risco(dados_completos, domain_clean)
     instrucoes = montar_instrucoes_formato(origem, score, classificacao, fatores, alerta_sensivel=cat_sensivel)
     prompt = f"""
-    {INSTRUCOES_SISTEMA}
     <instrucao_typosquatting>
     Se for site oficial regional (ex: .ar, .mx) ou marca real, RECLASSIFIQUE para SEGURO.
     Se for variação suspeita (ex: ofertas-latam), MANTENHA GOLPE.
@@ -554,8 +553,9 @@ def analisar_com_ia(url, dados_completos, origem="telegram", metadados=None):
     """
     try:
         resp = MODELO_IA.generate_content(prompt)
-        salvar_no_dataset(dados_completos, resp.text, metadados)
-        return resp.text
+        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        salvar_no_dataset(dados_completos, texto_final, metadados)
+        return texto_final
     except Exception as e:
         registrar_log(f"Erro IA URL: {e}", "ERRO")
         if cat_sensivel: return gerar_resposta_fallback_sensivel(cat_sensivel, origem)
@@ -578,7 +578,6 @@ def analisar_texto_ia(texto, origem="telegram", metadados=None):
     fake_blk = f"\n<checagem>{aviso_fakenews}</checagem>\nORDEM: É FAKE." if aviso_fakenews else ""
     texto_seguro = texto.replace("<", "").replace(">", "")
     prompt = f"""
-    {INSTRUCOES_SISTEMA}
     Analise esta mensagem.
     <instrucao_especial>
     Se for notícia VERDADEIRA, conversa normal ou saudação: Veredito SEGURO, Score 100.
@@ -592,8 +591,9 @@ def analisar_texto_ia(texto, origem="telegram", metadados=None):
     try:
         resp = MODELO_IA.generate_content(prompt)
         # Salva padronizado como 'input'
-        salvar_no_dataset({"input": texto_seguro}, resp.text, metadados)
-        return resp.text
+        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        salvar_no_dataset({"input": texto_seguro}, texto_final, metadados)
+        return texto_final
     except Exception as e: return f"Erro IA: {e}"
 
 # --- 8. BOT HANDLERS ---

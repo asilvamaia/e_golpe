@@ -1,6 +1,10 @@
 app = "guardian-bot-idoso"
 primary_region = "iad"
 
+[env]
+  PORT = "8080"
+  SERVICO = "SITE"
+
 [build]
 
 # [MUDANÇA 1] Define o script start.sh como comando principal
@@ -11,9 +15,9 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false # Importante: não deixa desligar
+  auto_stop_machines = true # Permite desligar para economizar
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
   processes = ["app"]
 
 [mounts]
