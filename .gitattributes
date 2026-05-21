@@ -1,0 +1,13 @@
+# Handle line endings automatically by default
+* text=auto
+
+# Force LF (Linux format) for python, shell scripts, and configs to ensure Docker/Linux compatibility
+*.py text eol=lf
+*.sh text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+.env text eol=lf
+.gitignore text eol=lf
+Dockerfile text eol=lf
+Procfile text eol=lf
