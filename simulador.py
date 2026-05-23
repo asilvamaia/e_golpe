@@ -227,7 +227,7 @@ def analisar_com_ia(url, dados_completos):
     if not MODELO_IA: return f"{Fore.RED}Erro IA{Style.RESET_ALL}"
 
     prompt = f"""
-    Atue como 'GuardianBot', um consultor de segurança digital profissional.
+    Atue como 'IA Contra Fraude', um consultor de segurança digital profissional.
     Analise os dados técnicos avançados abaixo e dê um veredicto para um usuário leigo (mas trate-o como adulto).
 
     --- DADOS TÉCNICOS ---

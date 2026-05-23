@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Guardian Bot - É Golpe?",
+  "name": "IA Contra Fraude - É Golpe?",
   "version": "1.0",
-  "description": "Analisa se a página atual é um ambiente seguro usando a inteligência do Guardian Bot.",
+  "description": "Analisa se a página atual é um ambiente seguro usando a inteligência do IA Contra Fraude.",
   "permissions": [
     "activeTab",
     "scripting",

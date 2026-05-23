@@ -81,7 +81,7 @@ ALVOS_TYPOSQUATTING = ["google.com", "facebook.com", "instagram.com", "caixa.gov
 WHITELIST_DEFAULT = ["uol.com.br", "globo.com", "g1.globo.com", "google.com", "google.com.br", "youtube.com", "facebook.com", "instagram.com", "whatsapp.com", "x.com", "twitter.com", "terra.com.br", "r7.com", "estadao.com.br", "folha.uol.com.br", "cnnbrasil.com.br", "wikipedia.org", "linkedin.com", "tiktok.com", "amazon.com", "amazon.com.br", "mercadolivre.com.br", "mercadolibre.com", "mercadolibre.com.ar", "mercadolibre.com.mx", "magalu.com.br", "magazineluiza.com.br", "americanas.com.br", "casasbahia.com.br", "pontofrio.com.br", "shopee.com.br", "shopee.com", "aliexpress.com", "shein.com", "ifood.com.br", "rappi.com.br", "giulianaflores.com.br", "cacaushow.com.br", "boticario.com.br", "latam.com", "latamairlines.com", "voegol.com.br", "voeazul.com.br", "decolar.com", "caixa.gov.br", "bb.com.br", "itau.com.br", "bradesco.com.br", "santander.com.br", "nubank.com.br", "inter.co", "bancointer.com.br", "original.com.br", "picpay.com", "mercadopago.com.br", "pagseguro.uol.com.br", "gov.br", "receita.fazenda.gov.br", "correios.com.br", "planalto.gov.br", "inss.gov.br", "meu.inss.gov.br", "detran.sp.gov.br", "tse.jus.br", "bcb.gov.br", "cgi.br", "nic.br", "registro.br", "reclameaqui.com.br", "consumidor.gov.br", "procon.sp.gov.br", "seiden.tech", "dia.com.br", "ifix.com.br"]
 
 INSTRUCOES_SISTEMA = """
-Você é o GuardianBot, um especialista em segurança digital. 
+Você é o IA Contra Fraude, um especialista em segurança digital. 
 Seu objetivo é analisar mensagens e links suspeitos para usuários leigos (especialmente idosos).
 
 REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
@@ -852,7 +852,7 @@ async def checar_senha_vazada(senha: str) -> bool:
     try:
         # A API exige um User-Agent preenchido ou retorna HTTP 403.
         import pyhibp
-        pyhibp.set_user_agent(ua="GuardianBot_Antifraude")
+        pyhibp.set_user_agent(ua="IA_Contra_Fraude_Antifraude")
         
         # A própria biblioteca pyhibp lida com o k-anonymity internamente
         # mas precisamos nos certificar de chamá-la de forma assíncrona/segura

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script de inicialização unificado do GuardianBot
+# Script de inicialização unificado do IA Contra Fraude
 # Este script inicia todos os três serviços simultaneamente sob o mesmo container.
 
 # 1. Inicia o Bot do Telegram em segundo plano

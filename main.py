@@ -31,7 +31,7 @@ def get_api_key(api_key_header: str = Security(api_key_header)):
         detail="Acesso Negado: Chave de API (x-api-key) ausente ou inválida."
     )
 
-app = FastAPI(title="Guardian Bot API", description="API para detecção de fraudes e verificação de segurança.")
+app = FastAPI(title="IA Contra Fraude API", description="API para detecção de fraudes e verificação de segurança.")
 
 # Adiciona o middleware CORS para permitir que a extensão de navegador consiga se conectar à API
 app.add_middleware(
@@ -54,7 +54,7 @@ class DomainRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "Guardian Bot está ativo!", "status": "online"}
+    return {"message": "IA Contra Fraude está ativo!", "status": "online"}
 
 @app.post("/check-email")
 def check_email(data: EmailRequest, api_key: str = Depends(get_api_key)):

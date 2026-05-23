@@ -58,7 +58,7 @@ def registrar_usuario(user_id):
             db.commit()
             bot.send_message(
                 user_id, 
-                "🔔 *Bem-vindo ao GuardianBot!*\n\nVocê agora está protegido. Envie qualquer link suspeito ou mensagem duvidosa e eu analisarei para você!", 
+                "🔔 *Bem-vindo ao IA Contra Fraude!*\n\nVocê agora está protegido. Envie qualquer link suspeito ou mensagem duvidosa e eu analisarei para você!", 
                 parse_mode='Markdown'
             )
             registrar_log(f"Novo usuário registrado no Telegram: {user_id}", "INFO")
@@ -71,11 +71,11 @@ if bot:
     @bot.message_handler(commands=['start', 'help'])
     def send_welcome(message):
         registrar_usuario(message.from_user.id)
-        bot.reply_to(message, "Olá! 🛡️\nSou o GuardianBot.\nEnvie um LINK ou MENSAGEM para verificar.")
+        bot.reply_to(message, "Olá! 🛡️\nSou o IA Contra Fraude.\nEnvie um LINK ou MENSAGEM para verificar.")
 
     @bot.message_handler(commands=['doar', 'apoiar'])
     def pedir_doacao(message):
-        bot.reply_to(message, "☕ **Apoie o GuardianBot!**\n\nAjude a manter o projeto vivo: https://livepix.gg/asmaia", parse_mode="Markdown")
+        bot.reply_to(message, "☕ **Apoie o IA Contra Fraude!**\n\nAjude a manter o projeto vivo: https://livepix.gg/asmaia", parse_mode="Markdown")
 
     @bot.message_handler(func=lambda message: True)
     def processar_mensagem(message):

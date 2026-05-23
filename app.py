@@ -223,7 +223,7 @@ def mostrar_disclaimer():
     st.markdown("""
     **1. Natureza Informativa**
     
-    Este sistema ("GuardianBot") é uma ferramenta de consulta auxiliar baseada em Inteligência Artificial e bancos de dados públicos de segurança cibernética.
+    Este sistema ("IA Contra Fraude") é uma ferramenta de consulta auxiliar baseada em Inteligência Artificial e bancos de dados públicos de segurança cibernética.
 
     **2. Limitações da Tecnologia**
     
@@ -301,7 +301,7 @@ def zipar_extensao():
 @st.dialog("🧩 Instalar Extensão de Navegador")
 def mostrar_instrucoes_extensao():
     st.markdown("""
-    A extensão do **Guardian Bot** protege sua navegação de forma automática e integrada, analisando os sites que você acessa em tempo real!
+    A extensão do **IA Contra Fraude** protege sua navegação de forma automática e integrada, analisando os sites que você acessa em tempo real!
     
     Como os navegadores (Chrome, Edge, Brave, etc.) exigem a publicação oficial nas lojas para instalações automatizadas de um clique, você pode usar a nossa extensão de forma totalmente gratuita e segura ativando o **Modo de Desenvolvedor** do seu navegador. 
     
@@ -315,9 +315,9 @@ def mostrar_instrucoes_extensao():
     try:
         conteudo_zip = zipar_extensao()
         st.download_button(
-            label="⬇️ Baixar Extensão do Guardian Bot (.ZIP)",
+            label="⬇️ Baixar Extensão do IA Contra Fraude (.ZIP)",
             data=conteudo_zip,
-            file_name="guardian_bot_extensao.zip",
+            file_name="ia_contra_fraude_extensao.zip",
             mime="application/zip",
             use_container_width=True,
             type="primary"
@@ -331,7 +331,7 @@ def mostrar_instrucoes_extensao():
     
     **Compatível com Google Chrome, Microsoft Edge, Brave, Opera ou qualquer navegador baseado em Chromium:**
     
-    1. **Extraia o arquivo ZIP** que você acabou de baixar no seu computador (clique com o botão direito sobre o arquivo `guardian_bot_extensao.zip` e escolha a opção *Extrair Tudo...*). Isso gerará uma pasta chamada `browser_extension`.
+    1. **Extraia o arquivo ZIP** que você acabou de baixar no seu computador (clique com o botão direito sobre o arquivo `ia_contra_fraude_extensao.zip` e escolha a opção *Extrair Tudo...*). Isso gerará uma pasta chamada `browser_extension`.
     2. No seu navegador, abra a página de extensões digitando um dos endereços abaixo na barra de busca:
        * **Google Chrome:** `chrome://extensions/`
        * **Microsoft Edge:** `edge://extensions/`
@@ -340,7 +340,7 @@ def mostrar_instrucoes_extensao():
     4. No canto superior esquerdo, clique no botão **"Carregar sem compactação"** (ou *Load unpacked* 📁).
     5. Selecione a pasta `browser_extension` que você extraiu no Passo 1.
     
-    ✨ **Pronto!** A extensão está ativa. Agora você pode clicar no ícone do **Guardian Bot** na barra de ferramentas do seu navegador sempre que quiser auditar a segurança de qualquer site aberto instantaneamente!
+    ✨ **Pronto!** A extensão está ativa. Agora você pode clicar no ícone do **IA Contra Fraude** na barra de ferramentas do seu navegador sempre que quiser auditar a segurança de qualquer site aberto instantaneamente!
     """)
 
 # --- SESSION STATE ---
@@ -520,7 +520,7 @@ if st.session_state['modo_admin']:
                             class PDF(FPDF):
                                 def header(self):
                                     self.set_font('helvetica', 'B', 15)
-                                    self.cell(0, 10, 'GuardianBot - Relatório de Segurança', border=False, align='C')
+                                    self.cell(0, 10, 'IA Contra Fraude - Relatório de Segurança', border=False, align='C')
                                     self.ln(20)
                             pdf = PDF()
                             pdf.add_page()
@@ -537,7 +537,7 @@ if st.session_state['modo_admin']:
                             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
                                 pdf.output(tmp.name)
                                 with open(tmp.name, "rb") as pdf_file:
-                                    st.download_button("⬇️ Baixar PDF", data=pdf_file, file_name=f"relatorio_guardian_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf")
+                                    st.download_button("⬇️ Baixar PDF", data=pdf_file, file_name=f"relatorio_ia_contra_fraude_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf")
                     
                     with c_btn2:
                         if st.button("🧠 Preparar Retreinamento", use_container_width=True, type="primary"):
