@@ -1,5 +1,8 @@
 // ATENÇÃO: Substitua a URL abaixo pela URL pública da sua API no Fly.io
-const API_URL = "https://guardian-bot-idoso.fly.dev/api/v1/analyze";
+const API_URL = "https://ia-contra-fraude.fly.dev/api/v1/analyze";
+// Se configurou a variável API_KEY_SECRET no Fly.io, insira a mesma chave abaixo para a extensão conseguir autenticar
+const API_KEY = ""; 
+
 document.addEventListener('DOMContentLoaded', async () => {
     const urlDisplay = document.getElementById('current-url');
     const analyzeBtn = document.getElementById('analyze-btn');
@@ -36,16 +39,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (API_KEY && API_KEY.trim() !== "") {
+                headers['x-api-key'] = API_KEY.trim();
+            }
+
             const response = await fetch(API_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({ text: activeUrl })
             });
 
             if (!response.ok) {
-                throw new Error("Erro na comunicação com o servidor.");
+                let errorMsg = "Erro na comunicação com o servidor.";
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        errorMsg = errData.detail;
+                    }
+                } catch (e) {
+                    // Se não for JSON ou não tiver detail, usa o status text da resposta HTTP
+                    if (response.statusText) {
+                        errorMsg = `Erro ${response.status}: ${response.statusText}`;
+                    }
+                }
+                throw new Error(errorMsg);
             }
 
             const data = await response.json();
@@ -59,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             verdictEl.textContent = "Erro na Análise";
             verdictEl.className = "verdict-erro";
-            analysisTextEl.textContent = "Não foi possível acessar a API GuardianBot. Verifique se o servidor ('" + API_URL + "') está online: " + error.message;
+            analysisTextEl.textContent = "Não foi possível obter a análise da página: " + error.message;
         } finally {
             loadingDiv.classList.add('hidden');
             resultDiv.classList.remove('hidden');

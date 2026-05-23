@@ -1,8 +1,11 @@
 # Usa uma imagem leve do Python
 FROM python:3.10-slim
 
-# Instala o comando 'whois' do sistema (necessário para a lib python-whois funcionar)
-RUN apt-get update && apt-get install -y whois && rm -rf /var/lib/apt/lists/*
+# Instala o comando 'whois' do sistema e o Nginx
+RUN apt-get update && apt-get install -y whois nginx && rm -rf /var/lib/apt/lists/*
+
+# Copia a configuração do Nginx para unificar a API e o Streamlit
+COPY nginx.conf /etc/nginx/sites-available/default
 
 # Cria a pasta do app
 WORKDIR /app

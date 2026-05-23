@@ -243,6 +243,106 @@ def mostrar_disclaimer():
     if st.button("OK, Entendi", use_container_width=True):
         st.rerun()
 
+def is_browser_compatible():
+    try:
+        ua = ""
+        # 1. Tenta obter o User-Agent via API moderna do Streamlit (1.30+)
+        if hasattr(st, "context") and hasattr(st.context, "headers"):
+            ua = st.context.headers.get("User-Agent", "")
+        
+        # 2. Fallback para versões anteriores do Streamlit
+        if not ua:
+            try:
+                from streamlit.web.server.websocket_headers import _get_websocket_headers
+                headers = _get_websocket_headers()
+                if headers:
+                    ua = headers.get("User-Agent", "")
+            except:
+                pass
+                
+        if not ua:
+            return True # Fallback caso não seja possível detectar
+            
+        ua = ua.lower()
+        
+        # Dispositivos móveis (celulares e tablets) não suportam extensões de navegador normais
+        mobile_indicators = ["iphone", "ipad", "android", "mobi", "mini", "windows phone", "iemobile"]
+        if any(ind in ua for ind in mobile_indicators):
+            return False
+            
+        # Verifica se o navegador é baseado em Chromium (Chrome, Edge, Opera, Brave, etc.)
+        is_chromium = "chrome" in ua or "chromium" in ua or "edg/" in ua or "opr/" in ua
+        
+        # Firefox e Safari desktop puro têm suporte/instaladores diferentes para extensões
+        is_firefox = "firefox" in ua
+        is_safari_pure = "safari" in ua and "chrome" not in ua and "chromium" not in ua and "edg/" not in ua
+        
+        if is_chromium and not is_firefox and not is_safari_pure:
+            return True
+            
+        return False
+    except Exception:
+        return True # Fallback seguro em caso de erro interno
+
+def zipar_extensao():
+    import io
+    import zipfile
+    import pathlib
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+        ext_dir = pathlib.Path("browser_extension")
+        for file_path in ext_dir.rglob("*"):
+            if file_path.is_file():
+                # Coloca no zip mantendo a estrutura relativa da pasta 'browser_extension'
+                zip_file.write(file_path, file_path.relative_to(ext_dir.parent))
+    return zip_buffer.getvalue()
+
+@st.dialog("🧩 Instalar Extensão de Navegador")
+def mostrar_instrucoes_extensao():
+    st.markdown("""
+    A extensão do **Guardian Bot** protege sua navegação de forma automática e integrada, analisando os sites que você acessa em tempo real!
+    
+    Como os navegadores (Chrome, Edge, Brave, etc.) exigem a publicação oficial nas lojas para instalações automatizadas de um clique, você pode usar a nossa extensão de forma totalmente gratuita e segura ativando o **Modo de Desenvolvedor** do seu navegador. 
+    
+    Siga estes passos rápidos e simples:
+    
+    ---
+    ### 1️⃣ Baixe os Arquivos da Extensão
+    Clique no botão abaixo para baixar a extensão oficial compactada (formato ZIP):
+    """)
+    
+    try:
+        conteudo_zip = zipar_extensao()
+        st.download_button(
+            label="⬇️ Baixar Extensão do Guardian Bot (.ZIP)",
+            data=conteudo_zip,
+            file_name="guardian_bot_extensao.zip",
+            mime="application/zip",
+            use_container_width=True,
+            type="primary"
+        )
+    except Exception as e:
+        st.error(f"Erro ao gerar pacote de download da extensão: {e}")
+        
+    st.markdown("""
+    ---
+    ### 2️⃣ Como instalar no seu Navegador:
+    
+    **Compatível com Google Chrome, Microsoft Edge, Brave, Opera ou qualquer navegador baseado em Chromium:**
+    
+    1. **Extraia o arquivo ZIP** que você acabou de baixar no seu computador (clique com o botão direito sobre o arquivo `guardian_bot_extensao.zip` e escolha a opção *Extrair Tudo...*). Isso gerará uma pasta chamada `browser_extension`.
+    2. No seu navegador, abra a página de extensões digitando um dos endereços abaixo na barra de busca:
+       * **Google Chrome:** `chrome://extensions/`
+       * **Microsoft Edge:** `edge://extensions/`
+       * **Brave Browser:** `brave://extensions/`
+    3. No canto superior direito, **ative a opção "Modo do desenvolvedor"** (ou *Developer mode* ⚙️).
+    4. No canto superior esquerdo, clique no botão **"Carregar sem compactação"** (ou *Load unpacked* 📁).
+    5. Selecione a pasta `browser_extension` que você extraiu no Passo 1.
+    
+    ✨ **Pronto!** A extensão está ativa. Agora você pode clicar no ícone do **Guardian Bot** na barra de ferramentas do seu navegador sempre que quiser auditar a segurança de qualquer site aberto instantaneamente!
+    """)
+
 # --- SESSION STATE ---
 if 'texto_para_analisar' not in st.session_state: st.session_state['texto_para_analisar'] = ""
 if 'ultima_requisicao' not in st.session_state: st.session_state['ultima_requisicao'] = 0
@@ -1072,6 +1172,10 @@ else:
 
     if st.button("📲 Instalar App", type="secondary", use_container_width=True):
         mostrar_instrucoes_instalacao()
+
+    if is_browser_compatible():
+        if st.button("🧩 Instalar Extensão", type="secondary", use_container_width=True):
+            mostrar_instrucoes_extensao()
     
     if st.button("📜 Termos de Uso", type="secondary", use_container_width=True):
         mostrar_disclaimer()
