@@ -111,6 +111,21 @@ REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
 CLIENTE_IA = None
 MODELO_NOME = 'gemma-4-31b-it' 
 
+def limpar_resposta_ia(texto: str) -> str:
+    if not texto:
+        return ""
+    # 1. Remove blocos de pensamento
+    texto_limpo = re.sub(r'<pensamento>.*?</pensamento>', '', texto, flags=re.DOTALL).strip()
+    
+    # 2. Garante que a resposta comece estritamente no Veredito, eliminando metalinguagens ou rascunhos que a IA possa gerar
+    termos_inicio = ["**Veredito:**", "Veredito:", "**veredito:**", "veredito:"]
+    for termo in termos_inicio:
+        idx = texto_limpo.find(termo)
+        if idx != -1:
+            return texto_limpo[idx:].strip()
+            
+    return texto_limpo
+
 def configurar_ia():
     global CLIENTE_IA
     if not GOOGLE_AI_KEY: 
@@ -135,6 +150,43 @@ def carregar_listas_seguranca():
         whitelist = [r[0] for r in whitelist_records]
         blacklist = [r[0] for r in blacklist_records]
         return whitelist, blacklist
+    finally:
+        db.close()
+
+def checar_dominio_whitelist(domain_clean):
+    if not domain_clean: return False
+    db = SessionLocal()
+    try:
+        # Busca exata indexada primeiro
+        match = db.query(DomainList).filter(DomainList.domain == domain_clean, DomainList.list_type == 'whitelist').first()
+        if match:
+            return True
+        # Se não achar exato, busca subdomínios (whitelist geralmente é muito pequena, então buscar tudo é seguro e rápido)
+        whitelist_records = db.query(DomainList.domain).filter(DomainList.list_type == 'whitelist').all()
+        whitelist = [r[0] for r in whitelist_records]
+        for safe in whitelist:
+            if domain_clean == safe or domain_clean.endswith("." + safe):
+                return True
+        return False
+    finally:
+        db.close()
+
+def checar_dominio_blacklist(domain_clean):
+    if not domain_clean: return False
+    db = SessionLocal()
+    try:
+        # Busca exata indexada primeiro
+        match = db.query(DomainList).filter(DomainList.domain == domain_clean, DomainList.list_type == 'blacklist').first()
+        if match:
+            return True
+        # Verifica domínios pais (ex: se "sub.bad.com" for verificado e "bad.com" estiver na blacklist)
+        parts = domain_clean.split('.')
+        for i in range(len(parts) - 1):
+            parent_domain = '.'.join(parts[i:])
+            match = db.query(DomainList).filter(DomainList.domain == parent_domain, DomainList.list_type == 'blacklist').first()
+            if match:
+                return True
+        return False
     finally:
         db.close()
 
@@ -502,17 +554,15 @@ def detecting_topicos_sensiveis(texto_site, url=""):
 detectar_topicos_sensiveis = detecting_topicos_sensiveis
 
 def calcular_score_risco(dados, domain_clean):
-    whitelist, blacklist = carregar_listas_seguranca()
     score = 100
     fatores = []
     
-    for safe in whitelist:
-        if domain_clean == safe or domain_clean.endswith("." + safe): return 100, "OFICIAL", "green", []
+    if checar_dominio_whitelist(domain_clean):
+        return 100, "OFICIAL", "green", []
     
-    for bad in blacklist:
-        if bad in domain_clean: 
-            score -= 100
-            fatores.append("Sistema de Segurança: Domínio identificado em lista de ameaças ativas (-100)")
+    if checar_dominio_blacklist(domain_clean):
+        score -= 100
+        fatores.append("Sistema de Segurança: Domínio identificado em lista de ameaças ativas (-100)")
 
     if "Limpo" not in dados.get('google', 'Limpo'): score -= 100; fatores.append("Google Safe Browsing: Detectado como Perigoso (-100)")
     if "DETECTADO" in dados.get('phishtank', ''): score -= 100; fatores.append("Base de Phishing: URL CONFIRMADA COMO GOLPE (-100)")
@@ -710,7 +760,7 @@ async def analisar_com_ia(url, dados_completos, origem="streamlit", metadados=No
         if not resp.text:
             raise ValueError("Resposta bloqueada pelo filtro de segurança da IA.")
             
-        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        texto_final = limpar_resposta_ia(resp.text)
         salvar_no_dataset(dados_completos, texto_final, metadados)
         return texto_final
     except Exception as e:
@@ -790,7 +840,7 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
         if not resp.text:
              raise ValueError("Resposta bloqueada.")
 
-        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        texto_final = limpar_resposta_ia(resp.text)
         salvar_no_dataset({"input": texto_seguro}, texto_final, metadados)
         return texto_final
     except Exception as e: return f"Erro IA: {e}"
@@ -900,7 +950,7 @@ async def analisar_arquivo_ia(file_bytes: bytes, mime_type: str, origem="streaml
         if not resp.text:
              raise ValueError("Resposta bloqueada pelo filtro.")
 
-        texto_final = re.sub(r'<pensamento>.*?</pensamento>', '', resp.text, flags=re.DOTALL).strip()
+        texto_final = limpar_resposta_ia(resp.text)
         salvar_no_dataset({"input": "UPLOAD_ARQUIVO", "tipo": mime_type}, texto_final, metadados)
         return texto_final
     except Exception as e:

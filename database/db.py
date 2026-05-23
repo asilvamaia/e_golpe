@@ -11,12 +11,12 @@ else:
     PASTA_DADOS = pasta_atual
 
 DB_PATH = PASTA_DADOS / "guardian.db"
-# If DATABASE_URL is set in the environment (e.g. Railway PostgreSQL), use it.
+# If DATABASE_URL is set in the environment (e.g. Postgres), use it.
 # Otherwise, default to the local SQLite file.
 db_url_env = os.environ.get("DATABASE_URL")
 
 if db_url_env:
-    # Some platforms (like Railway) provide 'postgres://' which SQLAlchemy 1.4+ no longer accepts
+    # Some platforms provide 'postgres://' which SQLAlchemy 1.4+ no longer accepts
     if db_url_env.startswith("postgres://"):
         db_url_env = db_url_env.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URL = db_url_env
@@ -31,6 +31,16 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args=connect_args
 )
+
+from sqlalchemy import event
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():

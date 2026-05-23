@@ -1,10 +1,14 @@
 #!/bin/bash
 
-# Este script decide qual serviço iniciar baseado na variável SERVICO configurada no Railway
+# Este script decide qual serviço iniciar baseado na variável SERVICO configurada no Fly.io
+
+# Inicia o Bot do Telegram em segundo plano
+echo "Iniciando Bot do Telegram em segundo plano..."
+python telegram_bot.py &
 
 if [ "$SERVICO" = "SITE" ]; then
     echo "Iniciando Streamlit..."
-    # O Streamlit usará a porta que o Railway injetar na variável PORT (ou 8080 se ausente)
+    # O Streamlit usará a porta que o Fly.io injetar na variável PORT (ou 8080 se ausente)
     export PORT="${PORT:-8080}"
     streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 else

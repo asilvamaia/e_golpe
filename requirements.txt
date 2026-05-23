@@ -13,21 +13,6 @@ httpx
 fastapi
 uvicorn
 pydantic
-streamlit
-requests
-python-dotenv
-beautifulsoup4
-python-whois
-google-generativeai
-url-normalize
-colorama
-pandas
-sqlalchemy
-bcrypt
-httpx
-fastapi
-uvicorn
-pydantic
 email-validator
 psycopg2-binary
 redis
@@ -35,3 +20,4 @@ pyhibp
 fpdf
 PyMuPDF
 gTTS==2.5.1
+pyTelegramBotAPI

@@ -19,6 +19,8 @@ from core import (
     validar_seguranca_url, 
     limpar_dominio, 
     carregar_listas_seguranca,
+    checar_dominio_whitelist,
+    checar_dominio_blacklist,
     orquestrar_coleta_dados_url,
     analisar_com_ia,        
     analisar_texto_ia,
@@ -51,7 +53,10 @@ def configurar_visual_ios():
         .stApp { background-color: var(--ios-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         
         /* Layout Limpo */
-        footer {visibility: hidden;}
+        header { visibility: hidden; height: 0px; }
+        div[data-testid="stHeader"] { display: none !important; }
+        .stDeployButton { display: none !important; }
+        footer { visibility: hidden; }
         .block-container { padding-top: 2rem; padding-bottom: 5rem; }
         
         /* Inputs */
@@ -64,13 +69,20 @@ def configurar_visual_ios():
         
         /* Centralizar o botão de submissão do formulário (Auditar Segurança Agora) */
         div[data-testid="stFormSubmitButton"] {
-            display: flex;
-            justify-content: center;
-            width: 100%;
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
         }
         div[data-testid="stFormSubmitButton"] > button {
             width: 100% !important;
-            max-width: 300px;
+            max-width: 300px !important;
+            margin: 0 auto !important;
+            display: block !important;
+        }
+        div.element-container:has(div[data-testid="stFormSubmitButton"]) {
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
         }
         
         /* Componentes Customizados */
@@ -307,11 +319,13 @@ def realizar_login_admin():
 
     if admin_hash_limpo and verificar_senha(senha_digitada, admin_hash_limpo):
         st.session_state['admin_autenticado'] = True
+        st.session_state['login_error'] = None
     elif not admin_hash_limpo and senha_digitada == fallback:
         # FALLBACK temporário para não quebrar o app se o bcrypt não estiver configurado
         st.session_state['admin_autenticado'] = True
+        st.session_state['login_error'] = None
     else:
-        st.error("Senha incorreta.")
+        st.session_state['login_error'] = "Senha incorreta."
 
 def sair_admin():
     st.session_state['modo_admin'] = False
@@ -372,9 +386,14 @@ if st.session_state['modo_admin']:
     if not st.session_state['admin_autenticado']:
         st.title("🔒 Acesso Restrito")
         st.text_input("Senha de Administrador:", type="password", key="senha_admin", on_change=realizar_login_admin)
+        if st.session_state.get('login_error'):
+            st.error(st.session_state['login_error'])
         if st.button("Voltar"): sair_admin()
     else:
         st.title("⚙️ Painel de Controle")
+        if st.session_state.get('success_message'):
+            st.success(st.session_state['success_message'])
+            st.session_state['success_message'] = None
         if st.button("Sair"): sair_admin()
         
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "🕵️ Histórico", "✅ Whitelist", "🚫 Blacklist", "📜 Logs", "💾 Backups"])
@@ -424,8 +443,9 @@ if st.session_state['modo_admin']:
                         if st.button("🧠 Preparar Retreinamento", use_container_width=True, type="primary"):
                             with st.spinner("Compilando feedbacks negativos para a IA..."):
                                 import subprocess
+                                import sys
                                 try:
-                                    resultado = subprocess.run(["python", "scripts/preparar_finetune.py"], capture_output=True, text=True)
+                                    resultado = subprocess.run([sys.executable, "scripts/preparar_finetune.py"], capture_output=True, text=True)
                                     if resultado.returncode == 0:
                                         st.success("Dataset de retreinamento gerado com sucesso!")
                                         st.code(resultado.stdout)
@@ -483,26 +503,277 @@ if st.session_state['modo_admin']:
                 db.close()
 
         with tab3:
-            st.subheader("Whitelist")
-            cw = carregar_arquivo_lista("whitelist")
-            nw = st.text_area("Domínios Seguros", value=cw, height=300)
-            if st.button("Salvar WL"): salvar_arquivo_lista("whitelist", nw)
+            st.subheader("🛡️ Domínios Verificados (Whitelist)")
+            st.markdown("Gerencie a lista de sites oficiais e confiáveis que são pulados pelas verificações de risco.")
+            
+            # Adicionar Novo / Importar
+            c_wl1, c_wl2 = st.columns(2)
+            with c_wl1:
+                with st.expander("➕ Adicionar Novo Domínio Seguro", expanded=False):
+                    with st.form("form_add_wl"):
+                        new_wl = st.text_input("Domínio (ex: banco.com.br):", placeholder="exemplo.com.br").strip().lower()
+                        if st.form_submit_button("Adicionar à Whitelist", type="primary"):
+                            if not new_wl:
+                                st.warning("Digite um domínio válido.")
+                            else:
+                                db = SessionLocal()
+                                try:
+                                    # Check if exists
+                                    existing = db.query(DomainList).filter(DomainList.domain == new_wl).first()
+                                    if existing:
+                                        st.warning(f"O domínio {new_wl} já está cadastrado como {existing.list_type}!")
+                                    else:
+                                        db.add(DomainList(domain=new_wl, list_type="whitelist"))
+                                        db.commit()
+                                        st.session_state['success_message'] = f"Domínio {new_wl} adicionado com sucesso!"
+                                        st.rerun()
+                                except Exception as e:
+                                    db.rollback()
+                                    st.error(f"Erro ao salvar: {e}")
+                                finally:
+                                    db.close()
+
+            with c_wl2:
+                with st.expander("📂 Importação em Massa (.TXT)", expanded=False):
+                    uploaded_file_wl = st.file_uploader("Selecione um arquivo de texto com 1 domínio por linha:", type=["txt"], key="bulk_upload_wl")
+                    if uploaded_file_wl is not None:
+                        if st.button("Confirmar Importação", type="primary", use_container_width=True, key="btn_confirm_wl"):
+                            content = uploaded_file_wl.getvalue().decode("utf-8")
+                            domains = [d.strip().lower() for d in content.split("\n") if d.strip()]
+                            if domains:
+                                with st.spinner(f"Importando {len(domains)} domínios..."):
+                                    db = SessionLocal()
+                                    try:
+                                        # Evitar duplicados no banco globalmente (coluna domain possui UNIQUE constraint)
+                                        existing_records = db.query(DomainList.domain).all()
+                                        existing_set = set(r[0].lower().strip() for r in existing_records)
+                                        
+                                        novos_dominios = [d for d in set(domains) if d not in existing_set]
+                                        
+                                        batch = [{"domain": d, "list_type": "whitelist"} for d in novos_dominios]
+                                        if batch:
+                                            # Insere em lotes de 10.000 para segurança e eficiência
+                                            tamanho_lote = 10000
+                                            for i in range(0, len(batch), tamanho_lote):
+                                                db.bulk_insert_mappings(DomainList, batch[i:i+tamanho_lote])
+                                            db.commit()
+                                            st.session_state['success_message'] = f"Sucesso! {len(novos_dominios)} novos domínios adicionados."
+                                        else:
+                                            st.session_state['success_message'] = "Todos os domínios enviados já existem no banco de dados."
+                                        st.rerun()
+                                    except Exception as e:
+                                        db.rollback()
+                                        st.error(f"Erro na importação: {e}")
+                                    finally:
+                                        db.close()
+
+            # Caixa de busca
+            search_wl = st.text_input("🔍 Pesquisar na Whitelist:", placeholder="Digite o domínio para pesquisar...").strip().lower()
+            
+            db = SessionLocal()
+            try:
+                # Se houver busca
+                if search_wl:
+                    records = db.query(DomainList).filter(
+                        DomainList.list_type == "whitelist",
+                        DomainList.domain.like(f"%{search_wl}%")
+                    ).all()
+                    
+                    if records:
+                        st.write(f"🔍 Resultados da busca ({len(records)}):")
+                        for item in records:
+                            c1, c2 = st.columns([5, 1])
+                            c1.code(item.domain)
+                            if c2.button("Excluir", key=f"del_wl_search_{item.id}", type="secondary"):
+                                db.delete(item)
+                                db.commit()
+                                st.success(f"{item.domain} removido!")
+                                st.rerun()
+                    else:
+                        st.info("Nenhum domínio correspondente encontrado.")
+                else:
+                    # Paginação de 15 em 15
+                    total_wl = db.query(DomainList).filter(DomainList.list_type == "whitelist").count()
+                    st.write(f"📋 Total cadastrado: **{total_wl}** domínios")
+                    
+                    if total_wl > 0:
+                        itens_por_pagina = 15
+                        total_paginas = max(1, -(-total_wl // itens_por_pagina)) # Teto da divisão
+                        
+                        # Guardar a página atual na session state
+                        if 'page_wl' not in st.session_state:
+                            st.session_state['page_wl'] = 1
+                            
+                        # Controles de página
+                        col_p1, col_p2, col_p3 = st.columns([1, 4, 1])
+                        with col_p1:
+                            if st.button("⬅️", key="prev_wl_page", disabled=st.session_state['page_wl'] == 1):
+                                st.session_state['page_wl'] -= 1
+                                st.rerun()
+                        with col_p2:
+                            st.markdown(f"<div style='text-align: center;'>Página <b>{st.session_state['page_wl']}</b> de <b>{total_paginas}</b></div>", unsafe_allow_html=True)
+                        with col_p3:
+                            if st.button("➡️", key="next_wl_page", disabled=st.session_state['page_wl'] == total_paginas):
+                                st.session_state['page_wl'] += 1
+                                st.rerun()
+                                
+                        offset = (st.session_state['page_wl'] - 1) * itens_por_pagina
+                        records = db.query(DomainList).filter(DomainList.list_type == "whitelist").order_by(DomainList.id.desc()).offset(offset).limit(itens_por_pagina).all()
+                        
+                        # Exibe a lista
+                        for item in records:
+                            c1, c2 = st.columns([5, 1])
+                            c1.code(item.domain)
+                            if c2.button("Excluir", key=f"del_wl_{item.id}", type="secondary"):
+                                db.delete(item)
+                                db.commit()
+                                st.success(f"{item.domain} removido!")
+                                st.rerun()
+                    else:
+                        st.info("A whitelist está vazia.")
+            except Exception as e:
+                st.error(f"Erro ao carregar dados: {e}")
+            finally:
+                db.close()
 
         with tab4:
-            st.subheader("Blacklist")
-            cb = carregar_arquivo_lista("blacklist")
-            nb = st.text_area("Domínios Bloqueados", value=cb, height=300)
-            if st.button("Salvar BL"): salvar_arquivo_lista("blacklist", nb)
+            st.subheader("🚫 Domínios Bloqueados (Blacklist)")
+            st.markdown("Gerencie domínios identificados ativamente como perigosos ou tentativas de golpe.")
+            
+            # Adicionar Novo
+            c_add1, c_add2 = st.columns(2)
+            with c_add1:
+                with st.expander("➕ Adicionar Novo Domínio Perigoso", expanded=False):
+                    with st.form("form_add_bl"):
+                        new_bl = st.text_input("Domínio (ex: site-golpe.com):", placeholder="exemplo.com").strip().lower()
+                        if st.form_submit_button("Adicionar à Blacklist", type="primary"):
+                            if not new_bl:
+                                st.warning("Digite um domínio válido.")
+                            else:
+                                db = SessionLocal()
+                                try:
+                                    existing = db.query(DomainList).filter(DomainList.domain == new_bl).first()
+                                    if existing:
+                                        st.warning(f"O domínio {new_bl} já está cadastrado como {existing.list_type}!")
+                                    else:
+                                        db.add(DomainList(domain=new_bl, list_type="blacklist"))
+                                        db.commit()
+                                        st.session_state['success_message'] = f"Domínio {new_bl} adicionado com sucesso!"
+                                        st.rerun()
+                                except Exception as e:
+                                    db.rollback()
+                                    st.error(f"Erro ao salvar: {e}")
+                                finally:
+                                    db.close()
+            with c_add2:
+                with st.expander("📂 Importação em Massa (.TXT)", expanded=False):
+                    uploaded_file = st.file_uploader("Selecione um arquivo de texto com 1 domínio por linha:", type=["txt"], key="bulk_upload_bl")
+                    if uploaded_file is not None:
+                        if st.button("Confirmar Importação", type="primary", use_container_width=True):
+                            content = uploaded_file.getvalue().decode("utf-8")
+                            domains = [d.strip().lower() for d in content.split("\n") if d.strip()]
+                            if domains:
+                                with st.spinner(f"Importando {len(domains)} domínios..."):
+                                    db = SessionLocal()
+                                    try:
+                                        # Evitar duplicados no banco globalmente (coluna domain possui UNIQUE constraint)
+                                        existing_records = db.query(DomainList.domain).all()
+                                        existing_set = set(r[0].lower().strip() for r in existing_records)
+                                        
+                                        novos_dominios = [d for d in set(domains) if d not in existing_set]
+                                        
+                                        batch = [{"domain": d, "list_type": "blacklist"} for d in novos_dominios]
+                                        if batch:
+                                            # Insere em lotes de 10.000 para segurança e eficiência
+                                            tamanho_lote = 10000
+                                            for i in range(0, len(batch), tamanho_lote):
+                                                db.bulk_insert_mappings(DomainList, batch[i:i+tamanho_lote])
+                                            db.commit()
+                                            st.session_state['success_message'] = f"Sucesso! {len(novos_dominios)} novos domínios adicionados."
+                                        else:
+                                            st.session_state['success_message'] = "Todos os domínios enviados já existem no banco de dados."
+                                        st.rerun()
+                                    except Exception as e:
+                                        db.rollback()
+                                        st.error(f"Erro na importação: {e}")
+                                    finally:
+                                        db.close()
+
+            # Caixa de busca
+            search_bl = st.text_input("🔍 Pesquisar na Blacklist:", placeholder="Digite o domínio para pesquisar...").strip().lower()
+            
+            db = SessionLocal()
+            try:
+                if search_bl:
+                    # Busca indexada rápida por substring
+                    records = db.query(DomainList).filter(
+                        DomainList.list_type == "blacklist",
+                        DomainList.domain.like(f"%{search_bl}%")
+                    ).limit(50).all() # Limite de 50 para evitar travamentos de rendering se a busca for muito genérica
+                    
+                    if records:
+                        st.write(f"🔍 Resultados da busca (mostrando até 50):")
+                        for item in records:
+                            c1, c2 = st.columns([5, 1])
+                            c1.code(item.domain)
+                            if c2.button("Excluir", key=f"del_bl_search_{item.id}", type="secondary"):
+                                db.delete(item)
+                                db.commit()
+                                st.success(f"{item.domain} removido!")
+                                st.rerun()
+                    else:
+                        st.info("Nenhum domínio correspondente encontrado.")
+                else:
+                    # Paginação de 15 em 15
+                    total_bl = db.query(DomainList).filter(DomainList.list_type == "blacklist").count()
+                    st.write(f"📋 Total cadastrado: **{total_bl}** domínios")
+                    
+                    if total_bl > 0:
+                        itens_por_pagina = 15
+                        total_paginas = max(1, -(-total_bl // itens_por_pagina))
+                        
+                        if 'page_bl' not in st.session_state:
+                            st.session_state['page_bl'] = 1
+                            
+                        col_p1, col_p2, col_p3 = st.columns([1, 4, 1])
+                        with col_p1:
+                            if st.button("⬅️", key="prev_bl_page", disabled=st.session_state['page_bl'] == 1):
+                                st.session_state['page_bl'] -= 1
+                                st.rerun()
+                        with col_p2:
+                            st.markdown(f"<div style='text-align: center;'>Página <b>{st.session_state['page_bl']}</b> de <b>{total_paginas}</b></div>", unsafe_allow_html=True)
+                        with col_p3:
+                            if st.button("➡️", key="next_bl_page", disabled=st.session_state['page_bl'] == total_paginas):
+                                st.session_state['page_bl'] += 1
+                                st.rerun()
+                                
+                        offset = (st.session_state['page_bl'] - 1) * itens_por_pagina
+                        records = db.query(DomainList).filter(DomainList.list_type == "blacklist").order_by(DomainList.id.desc()).offset(offset).limit(itens_por_pagina).all()
+                        
+                        for item in records:
+                            c1, c2 = st.columns([5, 1])
+                            c1.code(item.domain)
+                            if c2.button("Excluir", key=f"del_bl_{item.id}", type="secondary"):
+                                db.delete(item)
+                                db.commit()
+                                st.success(f"{item.domain} removido!")
+                                st.rerun()
+                    else:
+                        st.info("A blacklist está vazia.")
+            except Exception as e:
+                st.error(f"Erro ao carregar dados: {e}")
+            finally:
+                db.close()
 
         with tab5:
             st.subheader("Logs")
             if LOG_FILE.exists():
-                with open(LOG_FILE, 'r') as f: st.code("".join(f.readlines()[-50:]))
+                with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f: st.code("".join(f.readlines()[-50:]))
             else: st.info("Vazio.")
 
         with tab6:
             st.subheader("Bkp do Banco de Dados")
-            st.write("Baixe todas as tabelas do PostgreSQL para segurança.")
+            st.write("Baixe todas as tabelas do banco de dados (SQLite) para segurança.")
             if st.button("Gerar Arquivo de Backup (.ZIP)"):
                 import io
                 import zipfile
@@ -622,10 +893,7 @@ else:
                     domain_clean = limpar_dominio(url_final)
                     
                     # Check de Blacklist
-                    _, blacklist = carregar_listas_seguranca()
-                    eh_blacklist = False
-                    for bad in blacklist:
-                        if bad in domain_clean: eh_blacklist = True; break
+                    eh_blacklist = checar_dominio_blacklist(domain_clean)
                     
                     if eh_blacklist:
                         status_box.empty()
@@ -673,10 +941,7 @@ else:
                             url_final = url_validada
                             domain_clean = limpar_dominio(url_final)
                             
-                            whitelist, _ = carregar_listas_seguranca()
-                            eh_confiavel = False
-                            for safe in whitelist:
-                                if domain_clean == safe or domain_clean.endswith("." + safe): eh_confiavel = True; break
+                            eh_confiavel = checar_dominio_whitelist(domain_clean)
                             
                             if eh_confiavel:
                                 resultado_final = f"**Veredito:** :green[**SEGURO**]\n\n**Score:** 100/100\n\n✅ **SITE OFICIAL:** {domain_clean}\nEste é um domínio verificado."
@@ -695,7 +960,7 @@ else:
                     if cache_analise:
                         resultado_final = cache_analise + "\n\n*(⚡ Resultado obtido do Cache)*"
                     else:
-                        resultado_final = asyncio.run(analisar_texto_ia(texto_analise, origem="streamlit", metadados=meta_web))
+                        resultado_final = analisar_texto_ia(texto_analise, origem="streamlit", metadados=meta_web)
 
             status_box.empty() 
             

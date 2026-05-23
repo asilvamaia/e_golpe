@@ -1,5 +1,5 @@
-// ATENÇÃO: Substitua a URL abaixo pela URL pública da sua API no Railway
-const API_URL = "https://e-golpe.up.railway.app/api/v1/analyze";
+// ATENÇÃO: Substitua a URL abaixo pela URL pública da sua API no Fly.io
+const API_URL = "https://guardian-bot-idoso.fly.dev/api/v1/analyze";
 document.addEventListener('DOMContentLoaded', async () => {
     const urlDisplay = document.getElementById('current-url');
     const analyzeBtn = document.getElementById('analyze-btn');

@@ -1,4 +1,4 @@
-app = "guardian-bot-idoso"
+app = "ia-contra-fraude"
 primary_region = "iad"
 
 [env]

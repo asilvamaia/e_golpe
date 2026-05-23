@@ -19,7 +19,7 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 def get_api_key(api_key_header: str = Security(api_key_header)):
     expected_api_key = os.environ.get("API_KEY_SECRET")
     expected_api_key = expected_api_key.strip() if expected_api_key else None
-    # Se a variável API_KEY_SECRET não estiver configurada no Railway, a API fica 'aberta' temporariamente (fallback)
+    # Se a variável API_KEY_SECRET não estiver configurada no Fly.io, a API fica 'aberta' temporariamente (fallback)
     if not expected_api_key:
         return True
     
@@ -117,5 +117,5 @@ if __name__ == "__main__":
     import uvicorn
     import os
     port = int(os.environ.get("PORT", 8000))
-    # Para deploy, o runner padrão do Railway lerá esta variável
+    # Para deploy, o Fly.io lerá a porta a ser exposta a partir desta variável (PORT)
     uvicorn.run(app, host="0.0.0.0", port=port)

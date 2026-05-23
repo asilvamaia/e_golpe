@@ -1,0 +1,31 @@
+# Ignorar diretórios de controle de versão
+.git
+.github
+
+# Ignorar ambientes virtuais do Python
+venv/
+.venv/
+.venv_wsl/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar banco de dados local gigante (o Fly usa o volume /data)
+guardian.db
+*.db
+*.sqlite3
+
+# Ignorar backups e arquivos compactados
+*.rar
+*.tar
+*.zip
+*.gz
+projeto_backup.tar
+guardian-bot_ofc.rar
+
+# Outros arquivos desnecessários
+.env
+migration_log.txt
+version.txt
+browser_extension/
