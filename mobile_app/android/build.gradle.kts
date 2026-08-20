@@ -24,8 +24,8 @@ tasks.register<Delete>("clean") {
 }
 
 subprojects {
-    afterEvaluate {
-        val subproject = this
+    val subproject = this
+    val configureProject = {
         if (subproject.hasProperty("android")) {
             val androidExt = subproject.extensions.getByName("android")
             try {
@@ -39,6 +39,14 @@ subprojects {
                     // Ignore
                 }
             }
+        }
+    }
+
+    if (subproject.state.executed) {
+        configureProject()
+    } else {
+        subproject.afterEvaluate {
+            configureProject()
         }
     }
 }
