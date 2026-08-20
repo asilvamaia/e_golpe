@@ -109,7 +109,7 @@ REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
 """
 
 CLIENTE_IA = None
-MODELO_NOME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+MODELO_NOME = 'gemma-4-31b-it'
 
 def limpar_resposta_ia(texto: str) -> str:
     if not texto:
@@ -177,12 +177,8 @@ def configurar_ia():
     
     try:
         genai.configure(api_key=GOOGLE_AI_KEY)
-        try:
-            CLIENTE_IA = genai.GenerativeModel(MODELO_NOME, system_instruction=INSTRUCOES_SISTEMA)
-            registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
-        except Exception:
-            CLIENTE_IA = genai.GenerativeModel("gemini-1.5-flash", system_instruction=INSTRUCOES_SISTEMA)
-            registrar_log("IA conectada com fallback para gemini-1.5-flash", "INFO")
+        CLIENTE_IA = genai.GenerativeModel(MODELO_NOME, system_instruction=INSTRUCOES_SISTEMA)
+        registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
     except Exception as e:
         registrar_log(f"Falha ao iniciar modelo IA: {e}", "ALERTA")
 
