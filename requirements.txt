@@ -21,3 +21,4 @@ fpdf
 PyMuPDF
 gTTS==2.5.1
 pyTelegramBotAPI
+python-multipart

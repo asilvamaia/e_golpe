@@ -109,7 +109,7 @@ REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
 """
 
 CLIENTE_IA = None
-MODELO_NOME = 'gemma-4-31b-it' 
+MODELO_NOME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 def limpar_resposta_ia(texto: str) -> str:
     if not texto:
@@ -126,6 +126,49 @@ def limpar_resposta_ia(texto: str) -> str:
             
     return texto_limpo
 
+def extrair_veredito_e_score(texto: str):
+    """Extrai de forma padronizada veredito (SEGURO, ALERTA, GOLPE), score (0-100), nível e ícone."""
+    if not texto:
+        return {"veredito": "DESCONHECIDO", "score": 50, "nivel": "info", "icone": "ℹ️", "veredito_original": "DESCONHECIDO"}
+    
+    # Procura veredito
+    ver_match = re.search(r'\*\*Veredito:?\*\*\s*(\[?.*?\]?)', texto, re.I)
+    raw_ver = "ANÁLISE"
+    if ver_match:
+        raw_ver = ver_match.group(1).replace('[', '').replace(']', '').strip().upper()
+        raw_ver = re.sub(r':\w+', '', raw_ver).strip()
+    
+    # Procura Score
+    score_match = re.search(r'(?:Score|Nível de Segurança).*?(\d{1,3})', texto, re.I)
+    score_val = 50
+    if score_match:
+        try:
+            score_val = int(score_match.group(1))
+        except ValueError:
+            score_val = 50
+            
+    # Classificação
+    if "SEGURO" in raw_ver or "CONFIÁVEL" in raw_ver or score_val >= 80:
+        veredito_final = "SEGURO"
+        nivel = "safe"
+        icone = "✅"
+    elif "GOLPE" in raw_ver or "PERIGO" in raw_ver or "PHISHING" in raw_ver or "MALWARE" in raw_ver or score_val <= 40:
+        veredito_final = "GOLPE"
+        nivel = "danger"
+        icone = "🚨"
+    else:
+        veredito_final = "ALERTA"
+        nivel = "warning"
+        icone = "⚠️"
+        
+    return {
+        "veredito": veredito_final,
+        "score": score_val,
+        "nivel": nivel,
+        "icone": icone,
+        "veredito_original": raw_ver
+    }
+
 def configurar_ia():
     global CLIENTE_IA
     if not GOOGLE_AI_KEY: 
@@ -134,8 +177,12 @@ def configurar_ia():
     
     try:
         genai.configure(api_key=GOOGLE_AI_KEY)
-        CLIENTE_IA = genai.GenerativeModel(MODELO_NOME, system_instruction=INSTRUCOES_SISTEMA)
-        registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
+        try:
+            CLIENTE_IA = genai.GenerativeModel(MODELO_NOME, system_instruction=INSTRUCOES_SISTEMA)
+            registrar_log(f"IA conectada (Modelo iniciado): {MODELO_NOME}", "INFO")
+        except Exception:
+            CLIENTE_IA = genai.GenerativeModel("gemini-1.5-flash", system_instruction=INSTRUCOES_SISTEMA)
+            registrar_log("IA conectada com fallback para gemini-1.5-flash", "INFO")
     except Exception as e:
         registrar_log(f"Falha ao iniciar modelo IA: {e}", "ALERTA")
 

@@ -16,5 +16,11 @@ COPY . .
 # Instala as bibliotecas do Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Comando para iniciar o bot
-CMD ["python", "telegram_bot.py"]
+# Permissão de execução para o script de inicialização unificado
+RUN chmod +x start.sh
+
+# Expõe a porta do Nginx
+EXPOSE 8080
+
+# Comando para iniciar todos os serviços unificados (FastAPI + Streamlit + Telegram Bot + Nginx)
+CMD ["bash", "start.sh"]
