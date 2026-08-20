@@ -41,3 +41,6 @@ MANIFEST
 
 # Windows
 Thumbs.db
+
+# Whitelist Flutter app source files
+!/mobile_app/lib/
