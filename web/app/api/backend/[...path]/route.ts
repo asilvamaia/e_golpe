@@ -20,10 +20,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     return NextResponse.json({ detail: "Rota não permitida." }, { status: 404 });
   }
 
-  const baseUrl = process.env.API_BASE_URL?.replace(/\/$/, "");
-  if (!baseUrl) {
-    return NextResponse.json({ detail: "API ainda não configurada." }, { status: 503 });
-  }
+  const baseUrl = (
+    process.env.API_BASE_URL ?? "https://ia-contra-fraude.fly.dev"
+  ).replace(/\/$/, "");
 
   const target = new URL(`${baseUrl}/${joinedPath}`);
   request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value));
