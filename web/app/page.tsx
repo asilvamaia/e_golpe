@@ -92,6 +92,10 @@ export default function Home() {
 
   const resultLevel = result?.breached ? "danger" : result?.level || "safe";
   const resultTitle = result?.breached === true ? "Senha encontrada em vazamentos" : result?.breached === false ? "Nenhum vazamento conhecido" : result?.verdict || "Análise concluída";
+  const resultScore = Math.max(
+    0,
+    Math.min(100, result?.score ?? (result?.breached ? 10 : 100)),
+  );
 
   return (
     <main>
@@ -164,8 +168,8 @@ export default function Home() {
       {result && (
         <section className={`result-card ${resultLevel}`} aria-live="polite">
           <div className="score-wrap">
-            <div className="score-ring" style={{ "--score": `${result.score ?? (result.breached ? 10 : 100) * 3.6}deg` } as React.CSSProperties}>
-              <span>{result.score ?? (result.breached ? 10 : 100)}</span><small>/100</small>
+            <div className="score-ring" style={{ "--score": `${resultScore * 3.6}deg` } as React.CSSProperties} aria-label={`Pontuação ${resultScore} de 100`}>
+              <span>{resultScore}</span><small>DE 100</small>
             </div>
           </div>
           <div className="result-content">
