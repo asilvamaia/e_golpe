@@ -70,6 +70,10 @@ cors_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=os.environ.get(
+        "CORS_ALLOWED_ORIGIN_REGEX",
+        r"^(chrome-extension|moz-extension)://.+$",
+    ),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
