@@ -7,6 +7,7 @@ from email_validator import validate_email, EmailNotValidError
 import os
 import secrets
 import asyncio
+import time
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
@@ -37,8 +38,11 @@ def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
     expected_api_key = os.environ.get("API_KEY_SECRET")
     expected_api_key = expected_api_key.strip() if expected_api_key else None
     
-    # Se a variável API_KEY_SECRET não estiver configurada, a API permite acesso aberto/público
+    # A ativação é explícita para não interromper clientes antigos durante a migração.
+    # Em produção, configure REQUIRE_API_KEY=true e API_KEY_SECRET.
     if not expected_api_key:
+        if os.environ.get("REQUIRE_API_KEY", "false").lower() == "true":
+            raise HTTPException(status_code=503, detail="API não configurada com segurança.")
         return True
     
     if api_key_header and secrets.compare_digest(api_key_header.strip(), expected_api_key):
@@ -55,22 +59,29 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Adiciona o middleware CORS seguro para extensão e apps
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "https://fraude.servicos.ia.br,https://servicos.ia.br,https://servicos-ia.asilvamaia.chatgpt.site",
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- Modelos de Dados ---
 class AnalyzeRequest(BaseModel):
-    text: str = Field(..., description="Link ou texto de mensagem a ser analisado")
+    text: str = Field(..., min_length=1, max_length=8000, description="Link ou texto de mensagem a ser analisado")
     source: Optional[str] = Field("mobile_app", description="Origem da requisição (mobile_app, extension, api)")
 
 class AnalyzeTextRequest(BaseModel):
-    text: str = Field(..., description="Texto da mensagem suspeita (SMS, WhatsApp, e-mail)")
+    text: str = Field(..., min_length=1, max_length=8000, description="Texto da mensagem suspeita (SMS, WhatsApp, e-mail)")
     source: Optional[str] = Field("mobile_app", description="Origem da requisição")
 
 class EmailRequest(BaseModel):
@@ -80,7 +91,7 @@ class DomainRequest(BaseModel):
     domain: str
 
 class PasswordCheckRequest(BaseModel):
-    password: str = Field(..., description="Senha a ser verificada no Have I Been Pwned")
+    password: str = Field(..., min_length=1, max_length=1024, description="Senha a ser verificada no Have I Been Pwned")
 
 class FeedbackRequest(BaseModel):
     input_usuario: str
@@ -101,7 +112,7 @@ def home():
 @app.get("/health")
 @app.get("/api/v1/health")
 def health_check():
-    return {"status": "ok", "timestamp": str(asyncio.get_event_loop().time())}
+    return {"status": "ok", "timestamp": str(time.time())}
 
 # --- Rota Principal de Análise Unificada (Link ou Texto) ---
 

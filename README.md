@@ -78,6 +78,8 @@ TELEGRAM_BOT_TOKEN=seu_token_bot_telegram
 
 # Chave de Segurança da API (Opcional - se vazio, a API opera aberta)
 API_KEY_SECRET=sua_chave_secreta_aqui
+REQUIRE_API_KEY=true
+CORS_ALLOWED_ORIGINS=https://fraude.servicos.ia.br,https://servicos.ia.br
 
 # Banco de Dados e Cache
 DATABASE_URL=sqlite:///guardian.db
