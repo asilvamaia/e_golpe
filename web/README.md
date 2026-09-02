@@ -5,7 +5,7 @@ Frontend Next.js para a API FastAPI existente. O Streamlit continua ativo durant
 ## Desenvolvimento
 
 1. Copie `.env.example` para `.env.local`.
-2. Defina `API_BASE_URL` e, se a API estiver protegida, `API_KEY_SECRET`.
+2. Se necessário, substitua `API_BASE_URL`; sem essa variável, o frontend usa o endpoint oficial do Fly. Se a API estiver protegida, defina também `API_KEY_SECRET`.
 3. Execute `npm install` e `npm run dev`.
 
 O segredo é usado somente pelo Route Handler no servidor e nunca é enviado ao navegador.
