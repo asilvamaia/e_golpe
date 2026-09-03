@@ -1,104 +1,252 @@
-# 🛡️ É Golpe? — Sistema Integrado de Detecção de Fraudes e Golpes Digitais
+# 🛡️ É Golpe?
 
-Sistema inteligente multiplataforma para proteção contra fraudes, golpes virtuais, fake news e vazamentos de dados, desenvolvido com foco especial em usabilidade e acessibilidade para usuários leigos e idosos.
+**É Golpe?** é uma plataforma de apoio à prevenção de fraudes e golpes digitais. O projeto analisa links, mensagens, imagens e documentos suspeitos, reúne sinais técnicos com inteligência artificial e apresenta um resultado simples, com pontuação de segurança e orientações práticas.
 
----
+A interface foi pensada para pessoas com diferentes níveis de familiaridade com tecnologia, com atenção especial à legibilidade, contraste, responsividade e facilidade de uso.
 
-## 📱 Componentes do Ecossistema
+> **Aviso:** o resultado é uma análise automatizada de apoio à decisão. Nenhuma ferramenta consegue garantir que um conteúdo seja totalmente seguro. Em caso de dúvida, não clique, não envie dinheiro ou dados pessoais e procure a instituição envolvida por seus canais oficiais.
 
-1. **Aplicativo Mobile (Flutter - Android & iOS / AltStore)**:
-   - Suporte a verificação de **Links/Sites**, **Mensagens de Texto (SMS/WhatsApp)** e **Fotos/Prints/PDFs (OCR)**.
-   - Verificador de senhas vazadas em bases globais (**Have I Been Pwned** via k-anonymity).
-   - **Narração por voz integrada (TTS)** e **Modo Alto Contraste para Idosos**.
-   - Guia educacional com os principais golpes no Brasil e botões de emergência (190, 100, 181).
-   - Histórico local de escaneamentos e compartilhamento rápido de alertas.
-   - Compilação automatizada via **GitHub Actions** (`.apk` para Android e `.ipa` sideloadable para AltStore no iOS).
+## Acesso
 
-2. **Backend API (FastAPI)**:
-   - Rotas assíncronas de alta performance (`/api/v1/analyze`, `/api/v1/analyze-text`, `/api/v1/analyze-file`, `/api/v1/check-password`, `/api/v1/feedback`, `/api/v1/stats`).
-   - Autenticação por chave de API (`x-api-key`) e CORS configurado.
-   - Cache em camadas (Redis + SQLite/Postgres).
+- Site: [fraude.servicos.ia.br](https://fraude.servicos.ia.br)
+- API: [ia-contra-fraude.fly.dev](https://ia-contra-fraude.fly.dev)
+- Documentação interativa da API: [ia-contra-fraude.fly.dev/docs](https://ia-contra-fraude.fly.dev/docs)
 
-3. **Painel Web (Streamlit)**:
-   - Interface web amigável com geração de relatórios, gráficos e estatísticas.
+## Funcionalidades
 
-4. **Bot do Telegram**:
-   - Atendimento automático 24/7 para verificação rápida de mensagens, links e fotos enviadas no chat.
+- Análise de mensagens recebidas por SMS, WhatsApp, e-mail e outros canais
+- Verificação de links, redirecionamentos e sinais técnicos do domínio
+- Análise de imagens, capturas de tela e documentos PDF com OCR/IA
+- Consulta de senhas expostas usando o modelo de privacidade k-anonymity
+- Pontuação de segurança de 0 a 100 e classificação visual do risco
+- Cache de análises para respostas mais rápidas
+- Coleta de feedback para melhoria contínua
+- Interface responsiva e acessível
+- Integrações com aplicativo Flutter, bot do Telegram e extensão de navegador
 
-5. **Extensão de Navegador (Chrome / Edge)**:
-   - Auditoria com 1 clique da página atual em navegação.
+## Arquitetura
 
----
+| Componente | Tecnologia | Função |
+| --- | --- | --- |
+| Frontend web | Next.js 16, React 19 e TypeScript | Interface pública e proxy seguro para a API |
+| API | FastAPI e Python | Validação, análise e integração entre serviços |
+| Motor de análise | Python e Google Gemini | Combinação de regras, fontes externas e IA |
+| Interface legada | Streamlit | Painel mantido no backend durante a transição |
+| Persistência | SQLite ou PostgreSQL | Histórico, usuários, dataset e feedback |
+| Cache | Redis, quando configurado | Reutilização de resultados |
+| Infraestrutura | Vercel, Fly.io, Docker e Nginx | Hospedagem e proxy reverso |
+| App | Flutter | Cliente para Android, iOS e outras plataformas |
+| Extensão | Manifest V3 | Verificação da página aberta no navegador |
+| Bot | Telegram | Análise de links, mensagens, imagens e PDFs pelo chat |
 
-## 🚀 Como Compilar o App Mobile via GitHub Actions
+O navegador não recebe a chave privada da API. O frontend envia as solicitações para um Route Handler do Next.js, que acrescenta a credencial somente no servidor e encaminha a requisição ao FastAPI.
 
-O repositório já conta com o fluxo de integração contínua configurado em [`.github/workflows/build_mobile.yml`](.github/workflows/build_mobile.yml).
+## Estrutura do repositório
 
-### 1. Compilação Automática
-- Sempre que você fizer um `git push` na branch `main` ou criar uma tag de versão (`v1.0.0`), o GitHub Actions compilará automaticamente:
-  - **Android**: `egolpe-android-release.apk` (para instalar diretamente no Android) e `egolpe-android-release.aab` (Google Play).
-  - **iOS**: `egolpe-ios-altstore.ipa` (empacotado especialmente para instalação via AltStore).
-
-### 2. Baixar os Arquivos Compilados
-1. No seu repositório do GitHub, clique na aba **Actions**.
-2. Selecione a execução mais recente do workflow **Build Mobile Apps**.
-3. Na seção **Artifacts**, baixe:
-   - `egolpe-android-apk`
-   - `egolpe-ios-altstore-ipa`
-
----
-
-## 📲 Como Instalar no iPhone via AltStore
-
-1. Baixe o arquivo `egolpe-ios-altstore.ipa` no seu iPhone (ou transfira via iCloud/AirDrop).
-2. Abra o aplicativo **AltStore** no iPhone.
-3. Acesse a aba **My Apps** e toque no botão **+** (canto superior esquerdo).
-4. Selecione o arquivo `egolpe-ios-altstore.ipa`.
-5. O AltStore assinará o aplicativo com seu Apple ID e o instalará no dispositivo!
-
----
-
-## ⚙️ Variáveis de Ambiente (`.env`)
-
-Crie um arquivo `.env` na raiz do projeto com as chaves desejadas:
-
-```env
-# Google Gemini AI (Obrigatório para o cérebro de IA)
-GOOGLE_AI_KEY=sua_chave_gemini_aqui
-GEMINI_MODEL=gemini-2.0-flash
-
-# Chaves de Segurança Externa (Opcionais para enriquecimento)
-VIRUSTOTAL_API_KEY=sua_chave_virustotal
-URLSCAN_API_KEY=sua_chave_urlscan
-GOOGLE_API_KEY=sua_chave_google_search
-GOOGLE_SEARCH_CX=seu_cx_custom_search
-
-# Bot do Telegram (Opcional)
-TELEGRAM_BOT_TOKEN=seu_token_bot_telegram
-
-# Chave de Segurança da API (Opcional - se vazio, a API opera aberta)
-API_KEY_SECRET=sua_chave_secreta_aqui
-REQUIRE_API_KEY=true
-CORS_ALLOWED_ORIGINS=https://fraude.servicos.ia.br,https://servicos.ia.br
-CORS_ALLOWED_ORIGIN_REGEX=^(chrome-extension|moz-extension)://.+$
-
-# Banco de Dados e Cache
-DATABASE_URL=sqlite:///guardian.db
-REDIS_URL=redis://127.0.0.1:6379
+```text
+.
+├── main.py                 # API FastAPI
+├── core.py                 # Motor de coleta e análise
+├── app.py                  # Interface Streamlit
+├── database/               # Configuração e modelos do banco
+├── web/                    # Frontend Next.js
+├── mobile_app/             # Aplicativo Flutter
+├── browser_extension/      # Extensão Chrome/Edge
+├── telegram_bot.py         # Bot do Telegram
+├── scripts/                # Migração e preparação de dados
+├── Dockerfile
+├── nginx.conf
+├── start.sh
+└── fly.toml
 ```
 
----
+## Requisitos
 
-## 🐳 Executando com Docker
+Para executar o backend:
 
-Para iniciar todos os serviços unificados (FastAPI + Streamlit + Bot Telegram + Nginx):
+- Python 3.10 ou superior
+- `whois` instalado no sistema
+- Uma chave da API Google Gemini
+- Redis e PostgreSQL são opcionais; sem `DATABASE_URL`, o projeto usa SQLite
+
+Para executar o frontend:
+
+- Node.js compatível com Next.js 16
+- npm
+
+## Configuração
+
+Crie um arquivo `.env` na raiz:
+
+```env
+GOOGLE_AI_KEY=sua_chave_google_ai
+GEMINI_MODEL=gemini-2.0-flash
+
+API_KEY_SECRET=crie_um_segredo_forte
+REQUIRE_API_KEY=true
+
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://fraude.servicos.ia.br,https://servicos.ia.br
+CORS_ALLOWED_ORIGIN_REGEX=^(chrome-extension|moz-extension)://.+$
+
+DATABASE_URL=sqlite:///guardian.db
+REDIS_URL=redis://127.0.0.1:6379
+
+# Integrações opcionais
+VIRUSTOTAL_API_KEY=
+URLSCAN_API_KEY=
+GOOGLE_API_KEY=
+GOOGLE_SEARCH_CX=
+TELEGRAM_BOT_TOKEN=
+```
+
+Não publique arquivos `.env`, tokens ou chaves no repositório.
+
+### Frontend
+
+Copie o arquivo de exemplo:
 
 ```bash
-docker build -t ia-contra-fraude .
-docker run -p 8080:8080 --env-file .env ia-contra-fraude
+cd web
+cp .env.example .env.local
+```
+
+Configure as variáveis:
+
+```env
+API_BASE_URL=http://127.0.0.1:8000
+API_KEY_SECRET=o_mesmo_segredo_configurado_no_backend
+```
+
+`API_KEY_SECRET` é lida apenas no servidor pelo proxy do Next.js.
+
+## Execução local
+
+### Backend FastAPI
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+No Windows PowerShell, ative o ambiente com:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+A API ficará disponível em `http://127.0.0.1:8000` e o Swagger em `http://127.0.0.1:8000/docs`.
+
+### Frontend Next.js
+
+Em outro terminal:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Acesse `http://localhost:3000`.
+
+### Streamlit
+
+Para executar somente a interface legada:
+
+```bash
+streamlit run app.py
+```
+
+## Docker
+
+O contêiner inicia FastAPI, Streamlit, o bot do Telegram quando configurado e o Nginx na porta 8080:
+
+```bash
+docker build -t e-golpe .
+docker run --rm -p 8080:8080 --env-file .env e-golpe
 ```
 
 Acesse:
-- **Painel Web**: http://localhost:8080/
-- **Documentação da API (Swagger)**: http://localhost:8080/docs
-- **Health Check**: http://localhost:8080/health
+
+- Interface Streamlit: `http://localhost:8080/`
+- API: `http://localhost:8080/api/v1/health`
+- Swagger: `http://localhost:8080/docs`
+- Health check: `http://localhost:8080/health`
+
+## Principais endpoints
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| `GET` | `/health` | Estado do serviço |
+| `POST` | `/api/v1/analyze` | Análise unificada de texto ou URL |
+| `POST` | `/api/v1/analyze-text` | Análise de mensagem |
+| `POST` | `/api/v1/analyze-file` | Análise de imagem ou PDF |
+| `POST` | `/api/v1/check-password` | Consulta de senha exposta |
+| `POST` | `/api/v1/feedback` | Registro de avaliação |
+| `GET` | `/api/v1/stats` | Estatísticas do serviço |
+
+Quando `REQUIRE_API_KEY=true`, envie a chave no cabeçalho:
+
+```http
+x-api-key: sua_chave
+```
+
+Exemplo:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/analyze \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: sua_chave" \
+  -d '{"text":"https://exemplo.com","source":"api"}'
+```
+
+## Deploy
+
+### Backend no Fly.io
+
+O arquivo `fly.toml` usa a aplicação `ia-contra-fraude`, porta interna 8080 e volume persistente montado em `/data`.
+
+```bash
+fly secrets set GOOGLE_AI_KEY="..." API_KEY_SECRET="..." REQUIRE_API_KEY="true"
+fly deploy
+```
+
+As demais variáveis sensíveis devem ser cadastradas como secrets, nunca gravadas no `fly.toml`.
+
+### Frontend na Vercel
+
+- Defina `web` como **Root Directory**
+- Cadastre `API_BASE_URL` e `API_KEY_SECRET`
+- Faça o deploy da branch `main`
+- Aponte o domínio `fraude.servicos.ia.br` para o projeto
+
+Na interface web, uploads são limitados a 4 MB pelo proxy serverless. A API aceita imagens PNG, JPG e WEBP ou PDF com até 20 MB quando acessada diretamente.
+
+## Aplicativo mobile
+
+O workflow [`.github/workflows/build_mobile.yml`](.github/workflows/build_mobile.yml) executa os testes e compila:
+
+- APK universal para Android
+- AAB para publicação na Google Play
+- IPA sem assinatura para instalação via AltStore ou Sideloadly
+
+Os artefatos ficam disponíveis por 30 dias na execução correspondente da aba **Actions**. Tags no formato `v*` também podem gerar uma GitHub Release.
+
+## Privacidade e segurança
+
+- A chave da API permanece no servidor
+- A API pode exigir autenticação por `x-api-key`
+- CORS deve ser limitado aos domínios usados pelo projeto
+- URLs passam por validações antes da coleta
+- A consulta de senha usa somente uma parte do hash; a senha completa não é enviada ao serviço externo
+- Arquivos e dados suspeitos devem ser tratados como conteúdo sensível
+- Logs, bancos, datasets e backups reais não devem ser incluídos em commits públicos
+
+## Status
+
+Projeto em desenvolvimento contínuo. A nova interface Next.js é a experiência web principal, enquanto a API FastAPI e os demais clientes compartilham o mesmo motor de análise.
+
+---
+
+Uma iniciativa **Serviços IA**.
