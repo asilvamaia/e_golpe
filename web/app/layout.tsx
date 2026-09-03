@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Analise mensagens, links, imagens e documentos suspeitos com inteligência artificial.",
 };
 
-export const viewport: Viewport = { themeColor: "#071510", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#ffffff", colorScheme: "light" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
