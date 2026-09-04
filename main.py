@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Security, Depends, File, UploadFile, Query
+from fastapi import FastAPI, HTTPException, Security, Depends, File, UploadFile, Query, Request
+from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -6,6 +7,12 @@ import whois
 from email_validator import validate_email, EmailNotValidError
 import os
 import secrets
+import base64
+import hashlib
+import hmac
+import io
+import json
+import zipfile
 import asyncio
 import time
 from typing import Optional, List, Dict, Any
@@ -26,7 +33,7 @@ from core import (
     registrar_log
 )
 from database.db import SessionLocal
-from database.models import DatasetItem, Feedback, Usuario
+from database.models import DatasetItem, Feedback, Usuario, DomainList
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -101,6 +108,61 @@ class FeedbackRequest(BaseModel):
     input_usuario: str
     output_ia: str
     avaliacao: str = Field(..., description="Gostei, NaoGostei, ou detalhe")
+
+class MasterLoginRequest(BaseModel):
+    password: str = Field(..., min_length=1, max_length=256)
+
+class MasterDomainRequest(BaseModel):
+    domain: str = Field(..., min_length=3, max_length=253)
+    list_type: str = Field(..., pattern="^(whitelist|blacklist)$")
+
+MASTER_COOKIE_HEADER = "x-master-session"
+master_session_header = APIKeyHeader(name=MASTER_COOKIE_HEADER, auto_error=False)
+_login_attempts: Dict[str, List[float]] = {}
+
+def _master_secret() -> bytes:
+    value = os.environ.get("ADMIN_SESSION_SECRET") or os.environ.get("API_KEY_SECRET")
+    if not value or len(value) < 24:
+        raise HTTPException(status_code=503, detail="Acesso administrativo não configurado.")
+    return value.encode("utf-8")
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+def _issue_master_session() -> str:
+    payload = {"exp": int(time.time()) + 8 * 60 * 60, "nonce": secrets.token_urlsafe(16)}
+    encoded = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signature = _b64url(hmac.new(_master_secret(), encoded.encode("ascii"), hashlib.sha256).digest())
+    return f"{encoded}.{signature}"
+
+def require_master_session(token: Optional[str] = Security(master_session_header)):
+    if not token or "." not in token:
+        raise HTTPException(status_code=401, detail="Sessão administrativa necessária.")
+    encoded, signature = token.rsplit(".", 1)
+    expected = _b64url(hmac.new(_master_secret(), encoded.encode("ascii"), hashlib.sha256).digest())
+    if not secrets.compare_digest(signature, expected):
+        raise HTTPException(status_code=401, detail="Sessão inválida.")
+    try:
+        padding = "=" * (-len(encoded) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(encoded + padding))
+        if int(payload.get("exp", 0)) <= int(time.time()):
+            raise ValueError("expired")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Sessão expirada.")
+    return True
+
+def _verify_master_password(password: str) -> bool:
+    password_hash = (os.environ.get("ADMIN_PASS_HASH") or "").strip()
+    if not password_hash:
+        return False
+    try:
+        import bcrypt
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except Exception:
+        return False
+
+def _serialize_datetime(value):
+    return value.isoformat() if value else None
 
 # --- Rotas Base ---
 
@@ -393,6 +455,131 @@ def get_stats(api_key: Any = Depends(get_api_key)):
         }
     finally:
         db.close()
+
+# --- Administração protegida ---
+
+@app.post("/api/v1/master/login")
+def master_login(data: MasterLoginRequest, request: Request, api_key: Any = Depends(get_api_key)):
+    client = request.client.host if request.client else "unknown"
+    now = time.time()
+    attempts = [stamp for stamp in _login_attempts.get(client, []) if now - stamp < 15 * 60]
+    if len(attempts) >= 5:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde 15 minutos.")
+    if not _verify_master_password(data.password):
+        attempts.append(now)
+        _login_attempts[client] = attempts
+        time.sleep(0.6)
+        raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+    _login_attempts.pop(client, None)
+    return {"status": "authenticated", "token": _issue_master_session(), "expires_in": 8 * 60 * 60}
+
+@app.get("/api/v1/master/session")
+def master_session(_: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    return {"authenticated": True}
+
+@app.get("/api/v1/master/summary")
+def master_summary(_: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    db = SessionLocal()
+    try:
+        return {
+            "analyses": db.query(DatasetItem).count(),
+            "feedbacks": db.query(Feedback).count(),
+            "whitelist": db.query(DomainList).filter(DomainList.list_type == "whitelist").count(),
+            "blacklist": db.query(DomainList).filter(DomainList.list_type == "blacklist").count(),
+        }
+    finally:
+        db.close()
+
+@app.get("/api/v1/master/dataset")
+def master_dataset(page: int = Query(1, ge=1), limit: int = Query(25, ge=1, le=100), _: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    db = SessionLocal()
+    try:
+        total = db.query(DatasetItem).count()
+        rows = db.query(DatasetItem).order_by(DatasetItem.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return {"total": total, "page": page, "items": [{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "analysis": row.analise_modelo, "metadata": row.metadados, "technical_data": row.dados_tecnicos} for row in rows]}
+    finally:
+        db.close()
+
+@app.get("/api/v1/master/feedbacks")
+def master_feedbacks(page: int = Query(1, ge=1), limit: int = Query(25, ge=1, le=100), _: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    db = SessionLocal()
+    try:
+        total = db.query(Feedback).count()
+        rows = db.query(Feedback).order_by(Feedback.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return {"total": total, "page": page, "items": [{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "input": row.input_usuario, "output": row.output_ia, "rating": row.avaliacao} for row in rows]}
+    finally:
+        db.close()
+
+@app.get("/api/v1/master/domains")
+def master_domains(list_type: str = Query(..., pattern="^(whitelist|blacklist)$"), _: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    db = SessionLocal()
+    try:
+        rows = db.query(DomainList).filter(DomainList.list_type == list_type).order_by(DomainList.id.desc()).all()
+        return {"items": [{"id": row.id, "domain": row.domain, "list_type": row.list_type, "added_at": _serialize_datetime(row.added_at)} for row in rows]}
+    finally:
+        db.close()
+
+@app.post("/api/v1/master/domains")
+def master_add_domain(data: MasterDomainRequest, _: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    domain = data.domain.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
+    if not domain or "." not in domain or any(char.isspace() for char in domain):
+        raise HTTPException(status_code=400, detail="Domínio inválido.")
+    db = SessionLocal()
+    try:
+        existing = db.query(DomainList).filter(DomainList.domain == domain).first()
+        if existing:
+            existing.list_type = data.list_type
+        else:
+            db.add(DomainList(domain=domain, list_type=data.list_type))
+        db.commit()
+        return {"status": "saved", "domain": domain, "list_type": data.list_type}
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Não foi possível salvar o domínio.")
+    finally:
+        db.close()
+
+@app.delete("/api/v1/master/domains/{domain_id}")
+def master_delete_domain(domain_id: int, _: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    db = SessionLocal()
+    try:
+        row = db.query(DomainList).filter(DomainList.id == domain_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Domínio não encontrado.")
+        db.delete(row)
+        db.commit()
+        return {"status": "deleted"}
+    finally:
+        db.close()
+
+@app.get("/api/v1/master/logs")
+def master_logs(_: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    try:
+        from core import LOG_FILE
+        if not LOG_FILE.exists():
+            return {"lines": []}
+        with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as handle:
+            return {"lines": handle.readlines()[-200:]}
+    except Exception:
+        return {"lines": []}
+
+@app.get("/api/v1/master/backup")
+def master_backup(_: Any = Depends(require_master_session), api_key: Any = Depends(get_api_key)):
+    buffer = io.BytesIO()
+    db = SessionLocal()
+    try:
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            datasets = db.query(DatasetItem).all()
+            feedbacks = db.query(Feedback).all()
+            domains = db.query(DomainList).all()
+            archive.writestr("dataset.json", json.dumps([{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "analysis": row.analise_modelo, "metadata": row.metadados, "technical_data": row.dados_tecnicos} for row in datasets], ensure_ascii=False, default=str))
+            archive.writestr("feedbacks.json", json.dumps([{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "input": row.input_usuario, "output": row.output_ia, "rating": row.avaliacao} for row in feedbacks], ensure_ascii=False, default=str))
+            archive.writestr("domains.json", json.dumps([{"id": row.id, "domain": row.domain, "list_type": row.list_type, "added_at": _serialize_datetime(row.added_at)} for row in domains], ensure_ascii=False, default=str))
+    finally:
+        db.close()
+    buffer.seek(0)
+    filename = f"egolpe_backup_{time.strftime('%Y%m%d_%H%M')}.zip"
+    return StreamingResponse(buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 if __name__ == "__main__":
     import uvicorn
