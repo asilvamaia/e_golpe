@@ -153,13 +153,18 @@ def require_master_session(token: Optional[str] = Security(master_session_header
 
 def _verify_master_password(password: str) -> bool:
     password_hash = (os.environ.get("ADMIN_PASS_HASH") or "").strip()
-    if not password_hash:
+    if password_hash:
+        try:
+            import bcrypt
+            return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+        except Exception:
+            return False
+
+    # Compatibilidade com a senha legada: permanece somente no ambiente do servidor.
+    legacy_password = os.environ.get("ADMIN_PASS_FALLBACK")
+    if not legacy_password:
         return False
-    try:
-        import bcrypt
-        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
-    except Exception:
-        return False
+    return secrets.compare_digest(password, legacy_password)
 
 def _serialize_datetime(value):
     return value.isoformat() if value else None
