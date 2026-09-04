@@ -1,0 +1,35 @@
+name: Deploy API to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "main.py"
+      - "core.py"
+      - "database/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "fly.toml"
+      - ".github/workflows/fly.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: fly-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ia-contra-fraude
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy API
+        run: flyctl deploy --remote-only --app ia-contra-fraude
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
