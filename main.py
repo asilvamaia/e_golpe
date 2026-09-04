@@ -501,7 +501,7 @@ def master_dataset(page: int = Query(1, ge=1), limit: int = Query(25, ge=1, le=1
     try:
         total = db.query(DatasetItem).count()
         rows = db.query(DatasetItem).order_by(DatasetItem.id.desc()).offset((page - 1) * limit).limit(limit).all()
-        return {"total": total, "page": page, "items": [{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "analysis": row.analise_modelo, "metadata": row.metadados, "technical_data": row.dados_tecnicos} for row in rows]}
+        return {"total": total, "page": page, "items": [{"id": row.id, "timestamp": _serialize_datetime(row.timestamp), "input": (row.dados_tecnicos or {}).get("input", "Conteúdo não identificado") if isinstance(row.dados_tecnicos, dict) else str(row.dados_tecnicos or "Conteúdo não identificado"), "output": row.analise_modelo or "Resultado não disponível", "metadata": row.metadados, "technical_data": row.dados_tecnicos} for row in rows]}
     finally:
         db.close()
 
