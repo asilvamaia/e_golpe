@@ -24,16 +24,16 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     process.env.API_BASE_URL ?? "https://ia-contra-fraude.fly.dev"
   ).replace(/\/$/, "");
 
-  const target = new URL(`${baseUrl}/${joinedPath}`);
-  request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value));
-
-  const headers = new Headers();
-  const contentType = request.headers.get("content-type");
-  if (contentType) headers.set("content-type", contentType);
-  headers.set("accept", "application/json");
-  if (process.env.API_KEY_SECRET) headers.set("x-api-key", process.env.API_KEY_SECRET);
-
   try {
+    const target = new URL(`${baseUrl}/${joinedPath}`);
+    request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+
+    const headers = new Headers();
+    const contentType = request.headers.get("content-type");
+    if (contentType) headers.set("content-type", contentType);
+    headers.set("accept", "application/json");
+    if (process.env.API_KEY_SECRET) headers.set("x-api-key", process.env.API_KEY_SECRET);
+
     const response = await fetch(target, {
       method: request.method,
       headers,
@@ -46,7 +46,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       status: response.status,
       headers: { "content-type": responseType, "cache-control": "no-store" },
     });
-  } catch {
+  } catch (error) {
+    console.error("Backend proxy request failed", error);
     return NextResponse.json(
       { detail: "O serviço de análise demorou mais que o esperado. Tente novamente." },
       { status: 504 },
