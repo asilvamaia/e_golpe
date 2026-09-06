@@ -258,11 +258,21 @@ def limpar_dominio(url):
     if domain.startswith("www."): domain = domain[4:]
     return domain.lower()
 
+CACHE_ANALISE_VERSION = 2
+
+
+def _chave_cache_analise(input_str):
+    return f"cache_analise:v{CACHE_ANALISE_VERSION}:{input_str}"
+
+
 def salvar_no_dataset(dados_entrada, analise_ia, metadados=None):
+    dados_entrada = dict(dados_entrada or {})
+    dados_entrada["cache_version"] = CACHE_ANALISE_VERSION
+
     # Salva no Redis (Memória Rápida, 24h = 86400s)
     if REDIS_CLIENT and dados_entrada and 'input' in dados_entrada:
         try:
-            chave_redis = f"cache_analise:{dados_entrada['input']}"
+            chave_redis = _chave_cache_analise(dados_entrada['input'])
             dados_str = json.dumps({"analise": analise_ia, "dados": dados_entrada})
             REDIS_CLIENT.setex(chave_redis, 86400, dados_str)
         except Exception as e:
@@ -303,7 +313,7 @@ def checar_cache_analise(input_str, max_horas=24):
     # 1. Tenta Cache Ultra-Rápido via Redis
     if REDIS_CLIENT:
         try:
-            resultado_redis = REDIS_CLIENT.get(f"cache_analise:{input_str}")
+            resultado_redis = REDIS_CLIENT.get(_chave_cache_analise(input_str))
             if resultado_redis:
                 payload = json.loads(resultado_redis)
                 return payload.get("analise"), payload.get("dados")
@@ -316,10 +326,14 @@ def checar_cache_analise(input_str, max_horas=24):
         limite = datetime.utcnow() - timedelta(hours=max_horas)
         recentes = db.query(DatasetItem).filter(DatasetItem.timestamp >= limite).order_by(DatasetItem.timestamp.desc()).all()
         for item in recentes:
-            if item.dados_tecnicos and item.dados_tecnicos.get('input') == input_str:
+            if (
+                item.dados_tecnicos
+                and item.dados_tecnicos.get('input') == input_str
+                and item.dados_tecnicos.get('cache_version') == CACHE_ANALISE_VERSION
+            ):
                 if REDIS_CLIENT: # Repopula pro futuro
                     try:
-                        REDIS_CLIENT.setex(f"cache_analise:{input_str}", 86400, json.dumps({"analise": item.analise_modelo, "dados": item.dados_tecnicos}))
+                        REDIS_CLIENT.setex(_chave_cache_analise(input_str), 86400, json.dumps({"analise": item.analise_modelo, "dados": item.dados_tecnicos}))
                     except: pass
                 return item.analise_modelo, item.dados_tecnicos
         return None, None
@@ -694,14 +708,13 @@ async def consultar_google_reputacao(dominio):
         else: return "Nenhuma página do Reclame Aqui encontrada para este domínio exato."
     except Exception as e: return f"Erro na consulta de reputação: {str(e)}"
 
-async def consultar_fakenews_google(termo_busca):
+def consultar_fakenews_google(termo_busca):
     api_key = os.getenv("GOOGLE_API_KEY") 
     if not api_key or not termo_busca or len(termo_busca) < 4: return None
     url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
     params = {'key': api_key, 'query': termo_busca, 'languageCode': 'pt-BR', 'pageSize': 5}
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, params=params, timeout=4)
+        r = requests.get(url, params=params, timeout=4)
         dados = r.json()
         
         if "claims" in dados and dados["claims"]:
