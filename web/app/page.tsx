@@ -14,23 +14,6 @@ type Analysis = {
   cached?: boolean;
 };
 
-async function readApiResponse(response: Response): Promise<Analysis & { detail?: string }> {
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    throw new Error(
-      response.status === 504
-        ? "O serviço demorou mais que o esperado. Tente novamente em alguns instantes."
-        : "O serviço retornou uma resposta inválida. Tente novamente.",
-    );
-  }
-
-  try {
-    return await response.json();
-  } catch {
-    throw new Error("Não foi possível interpretar a resposta do serviço. Tente novamente.");
-  }
-}
-
 const modes = [
   { id: "message" as const, icon: "✉", label: "Mensagem", hint: "SMS, WhatsApp ou e-mail" },
   { id: "link" as const, icon: "↗", label: "Link", hint: "Site ou endereço suspeito" },
@@ -128,7 +111,7 @@ export default function Home() {
           body: JSON.stringify(body),
         });
       }
-      const data = await readApiResponse(response);
+      const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Não foi possível concluir a análise.");
       setResult(data);
       if (mode === "password") setPassword("");
@@ -323,7 +306,7 @@ export default function Home() {
             <h2 id="sos-title">Aja com calma e procure os canais oficiais</h2>
             <p>Interrompa o contato com o suspeito, avise seu banco pelo aplicativo oficial ou pelo telefone impresso no cartão e preserve mensagens e comprovantes.</p>
           </div>
-          <a href="https://www.gov.br/pt-br/servicos/registrar-ocorrencia-policial-online" target="_blank" rel="noreferrer">Registrar ocorrência online <span aria-hidden="true">↗</span></a>
+          <a href="https://www.gov.br/pt-br/servicos/registrar-boletim-de-ocorrencia-policial" target="_blank" rel="noreferrer">Consultar delegacia eletrônica <span aria-hidden="true">↗</span></a>
         </section>
       </main>
 
