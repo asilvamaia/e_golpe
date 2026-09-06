@@ -323,7 +323,7 @@ export default function Home() {
             <h2 id="sos-title">Aja com calma e procure os canais oficiais</h2>
             <p>Interrompa o contato com o suspeito, avise seu banco pelo aplicativo oficial ou pelo telefone impresso no cartão e preserve mensagens e comprovantes.</p>
           </div>
-          <a href="https://www.gov.br/pt-br/servicos/registrar-boletim-de-ocorrencia-policial" target="_blank" rel="noreferrer">Consultar delegacia eletrônica <span aria-hidden="true">↗</span></a>
+          <a href="https://www.gov.br/pt-br/servicos/registrar-ocorrencia-policial-online" target="_blank" rel="noreferrer">Registrar ocorrência online <span aria-hidden="true">↗</span></a>
         </section>
       </main>
 
