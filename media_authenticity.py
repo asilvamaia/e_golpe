@@ -185,16 +185,24 @@ Responda SOMENTE com JSON válido neste formato:
 
     import core
 
-    if not core.CLIENTE_IA:
-        core.configurar_ia()
-    if not core.CLIENTE_IA:
+    if not core.GOOGLE_AI_KEY:
         raise RuntimeError("O modelo de IA não está configurado no servidor.")
+    genai.configure(api_key=core.GOOGLE_AI_KEY)
+    media_model = genai.GenerativeModel(os.getenv("MEDIA_MODEL_NAME", core.MODELO_NOME))
+
+    generation_config = {
+        "temperature": 0.1,
+        "response_mime_type": "application/json",
+    }
 
     uploaded = None
     temp_path = None
     try:
         if is_image:
-            response = core.CLIENTE_IA.generate_content([{"mime_type": mime_type, "data": data}, prompt])
+            response = media_model.generate_content(
+                [{"mime_type": mime_type, "data": data}, prompt],
+                generation_config=generation_config,
+            )
         else:
             suffix = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}[mime_type]
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
@@ -207,7 +215,10 @@ Responda SOMENTE com JSON válido neste formato:
                 uploaded = genai.get_file(uploaded.name)
             if getattr(uploaded.state, "name", "") != "ACTIVE":
                 raise RuntimeError("O vídeo não ficou pronto para análise dentro do tempo limite.")
-            response = core.CLIENTE_IA.generate_content([uploaded, prompt])
+            response = media_model.generate_content(
+                [uploaded, prompt],
+                generation_config=generation_config,
+            )
 
         result = _normalize_result(_extract_json(response.text))
         result.update({
