@@ -7,6 +7,7 @@ on:
     paths:
       - "main.py"
       - "core.py"
+      - "media_authenticity.py"
       - "database/**"
       - "requirements.txt"
       - "Dockerfile"
