@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { backendHeaders, backendUrl, MASTER_COOKIE } from "@/lib/master-backend";
 
 export const runtime = "nodejs";
-const allowed = new Set(["summary", "dataset", "feedbacks", "domains", "logs", "backup"]);
+export const maxDuration = 60;
+const allowed = new Set(["summary", "dataset", "feedbacks", "domains", "logs", "backup", "media-authenticity"]);
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   if (!request.cookies.get(MASTER_COOKIE)) return NextResponse.json({ detail: "Não autorizado." }, { status: 401 });
@@ -15,7 +16,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
   try {
-    const response = await fetch(target, { method: request.method, headers, body: request.method === "GET" ? undefined : await request.arrayBuffer(), cache: "no-store", signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(target, { method: request.method, headers, body: request.method === "GET" ? undefined : await request.arrayBuffer(), cache: "no-store", signal: AbortSignal.timeout(58_000) });
     return new NextResponse(response.body, { status: response.status, headers: { "content-type": response.headers.get("content-type") || "application/json", "content-disposition": response.headers.get("content-disposition") || "", "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({ detail: "Serviço administrativo indisponível." }, { status: 503 });

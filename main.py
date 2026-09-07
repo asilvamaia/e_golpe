@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Security, Depends, File, UploadFile, Query, Request
+from fastapi import FastAPI, HTTPException, Security, Depends, File, Form, UploadFile, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +34,12 @@ from core import (
 )
 from database.db import SessionLocal
 from database.models import DatasetItem, Feedback, Usuario, DomainList
+from media_authenticity import (
+    IMAGE_MIME_TYPES,
+    MAX_IMAGE_UPLOAD_BYTES,
+    analyze_media,
+    download_public_media,
+)
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -585,6 +591,40 @@ def master_backup(_: Any = Depends(require_master_session), api_key: Any = Depen
     buffer.seek(0)
     filename = f"egolpe_backup_{time.strftime('%Y%m%d_%H%M')}.zip"
     return StreamingResponse(buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
+
+
+@app.post("/api/v1/master/media-authenticity")
+async def master_media_authenticity(
+    file: Optional[UploadFile] = File(None),
+    media_url: Optional[str] = Form(None),
+    _: Any = Depends(require_master_session),
+    api_key: Any = Depends(get_api_key),
+):
+    """Protótipo isolado para estimar se imagem ou vídeo contém sinais de IA."""
+    if bool(file) == bool(media_url and media_url.strip()):
+        raise HTTPException(status_code=400, detail="Envie uma imagem ou informe um link, mas não os dois.")
+
+    try:
+        if file:
+            mime_type = (file.content_type or "").lower()
+            if mime_type not in IMAGE_MIME_TYPES:
+                raise ValueError("O upload aceita somente imagens JPG, PNG ou WEBP.")
+            data = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
+            if len(data) > MAX_IMAGE_UPLOAD_BYTES:
+                raise ValueError("A imagem excede o limite de 4 MB.")
+            source = "upload"
+        else:
+            data, mime_type, resolved_url = await asyncio.to_thread(download_public_media, media_url.strip())
+            source = resolved_url
+
+        result = await asyncio.to_thread(analyze_media, data, mime_type, source)
+        registrar_log(f"Detector de mídia IA executado: {mime_type} ({len(data)} bytes)", "INFO")
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        registrar_log(f"Erro no detector de mídia IA: {exc}", "ERRO")
+        raise HTTPException(status_code=500, detail="Não foi possível analisar a mídia neste momento.")
 
 if __name__ == "__main__":
     import uvicorn
