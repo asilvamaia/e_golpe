@@ -29,6 +29,9 @@ from core import (
     desencurtar_link,
     validar_seguranca_url,
     extrair_veredito_e_score,
+    limpar_dominio,
+    checar_dominio_whitelist,
+    checar_dominio_blacklist,
     salvar_feedback,
     registrar_log
 )
@@ -95,11 +98,11 @@ app.add_middleware(
 # --- Modelos de Dados ---
 class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=8000, description="Link ou texto de mensagem a ser analisado")
-    source: Optional[str] = Field("mobile_app", description="Origem da requisição (mobile_app, extension, api)")
+    source: Optional[str] = Field("web", description="Origem da requisição (web, extension, api)")
 
 class AnalyzeTextRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=8000, description="Texto da mensagem suspeita (SMS, WhatsApp, e-mail)")
-    source: Optional[str] = Field("mobile_app", description="Origem da requisição")
+    source: Optional[str] = Field("web", description="Origem da requisição")
 
 class EmailRequest(BaseModel):
     email: str
@@ -206,12 +209,38 @@ async def analyze_content(data: AnalyzeRequest, api_key: Any = Depends(get_api_k
     meta = {"origem": data.source or "API"}
     
     if url:
-        # 1. Trata URL
-        url_final, foi_redirecionado = desencurtar_link(url)
+        if "://" not in url:
+            url = "http://" + url
+
+        # 1. Trata URL com protecao preventiva contra SSRF
+        seguro_tecnico_ini, motivo_ini, url_ini_validada = validar_seguranca_url(url)
+        if not seguro_tecnico_ini:
+            if "DNS_FAIL" in (motivo_ini or ""):
+                fallback_block = f"**Veredito:** :orange[**SITE OFFLINE**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:** Não foi possível conectar ao endereço informado ({url}). O domínio pode não existir, o servidor está desligado ou o site foi desativado.\n\n**Ação:** Tenha cautela redobrada caso tenha recebido este endereço em mensagens suspeitas."
+            else:
+                fallback_block = f"**Veredito:** :red[**PERIGO (BLOQUEADO)**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:** O endereço fornecido foi bloqueado por segurança técnica ({motivo_ini}).\n\n**Ação:** NÃO ACESSE este endereço."
+            info = extrair_veredito_e_score(fallback_block)
+            return {
+                "status": "success",
+                "cached": False,
+                "type": "url",
+                "url": url,
+                "resolved_url": url,
+                "verdict": info["veredito"],
+                "score": info["score"],
+                "level": info["nivel"],
+                "icon": info["icone"],
+                "analysis": fallback_block
+            }
+
+        url_final, foi_desencurtado = desencurtar_link(url_ini_validada)
         seguro_tecnico, motivo, url_validada = validar_seguranca_url(url_final)
         
         if not seguro_tecnico:
-            fallback_block = f"**Veredito:** :red[**PERIGO (BLOQUEADO)**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:** O endereço fornecido foi bloqueado por segurança técnica ({motivo}).\n\n**Ação:** NÃO ACESSE este endereço."
+            if "DNS_FAIL" in (motivo or ""):
+                fallback_block = f"**Veredito:** :orange[**SITE OFFLINE**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:** Não foi possível conectar ao endereço de destino ({url_final}). O site pode estar temporariamente fora do ar ou ter sido desativado.\n\n**Ação:** Tenha cautela redobrada."
+            else:
+                fallback_block = f"**Veredito:** :red[**PERIGO (BLOQUEADO)**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:** O endereço fornecido foi bloqueado por segurança técnica ({motivo}).\n\n**Ação:** NÃO ACESSE este endereço."
             info = extrair_veredito_e_score(fallback_block)
             return {
                 "status": "success",
@@ -227,6 +256,41 @@ async def analyze_content(data: AnalyzeRequest, api_key: Any = Depends(get_api_k
             }
             
         url_final = url_validada
+        domain_clean = limpar_dominio(url_final)
+
+        # 2. Check imediato de Blacklist
+        if checar_dominio_blacklist(domain_clean):
+            analysis_text = f"**Veredito:** :red[**GOLPE**]\n\n🛡️ **Nível de Segurança:** 0/100\n\n**Análise:**\nEste domínio ({domain_clean}) foi identificado no banco de dados de ameaças ativas e sites maliciosos.\n\n**Ação:**\n- 🚫 NÃO ACESSE este site.\n- Bloqueie o remetente."
+            info = extrair_veredito_e_score(analysis_text)
+            return {
+                "status": "success",
+                "cached": False,
+                "type": "url",
+                "url": url,
+                "resolved_url": url_final,
+                "verdict": info["veredito"],
+                "score": info["score"],
+                "level": info["nivel"],
+                "icon": info["icone"],
+                "analysis": analysis_text
+            }
+
+        # 3. Check imediato de Whitelist (Domínio Oficial / Verificado)
+        if checar_dominio_whitelist(domain_clean):
+            analysis_text = f"**Veredito:** :green[**SEGURO**]\n\n🛡️ **Nível de Segurança:** 100/100\n\n**Análise:**\nO site `{domain_clean}` é um domínio oficial e verificado na nossa base de confiança.\n\n**Ação:**\nVocê pode navegar com tranquilidade."
+            info = extrair_veredito_e_score(analysis_text)
+            return {
+                "status": "success",
+                "cached": False,
+                "type": "url",
+                "url": url,
+                "resolved_url": url_final,
+                "verdict": info["veredito"],
+                "score": info["score"],
+                "level": info["nivel"],
+                "icon": info["icone"],
+                "analysis": analysis_text
+            }
         
         try:
             cache_analise, _ = checar_cache_analise(url_final)
@@ -344,7 +408,7 @@ async def analyze_text(data: AnalyzeTextRequest, api_key: Any = Depends(get_api_
 @app.post("/api/v1/analyze-file")
 async def analyze_file(
     file: UploadFile = File(...),
-    source: Optional[str] = Query("mobile_app"),
+    source: Optional[str] = Query("web"),
     api_key: Any = Depends(get_api_key)
 ):
     """

@@ -111,8 +111,20 @@ export default function Home() {
           body: JSON.stringify(body),
         });
       }
+      if (!response.ok) {
+        const text = await response.text();
+        let message = "Não foi possível concluir a análise.";
+        try {
+          const errData = JSON.parse(text);
+          if (errData.detail) message = errData.detail;
+        } catch {
+          if (response.status === 502 || response.status === 504) {
+            message = "O servidor de análise está reiniciando ou temporariamente indisponível. Tente novamente em instantes.";
+          }
+        }
+        throw new Error(message);
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Não foi possível concluir a análise.");
       setResult(data);
       if (mode === "password") setPassword("");
     } catch (err) {
@@ -306,7 +318,7 @@ export default function Home() {
             <h2 id="sos-title">Aja com calma e procure os canais oficiais</h2>
             <p>Interrompa o contato com o suspeito, avise seu banco pelo aplicativo oficial ou pelo telefone impresso no cartão e preserve mensagens e comprovantes.</p>
           </div>
-          <a href="https://delegaciavirtual.sinesp.gov.br/" target="_blank" rel="noreferrer">Registrar ocorrência online <span aria-hidden="true">↗</span></a>
+          <a href="https://delegaciavirtual.sinesp.gov.br/portal/" target="_blank" rel="noreferrer">Registrar ocorrência online <span aria-hidden="true">↗</span></a>
         </section>
       </main>
 
@@ -314,7 +326,7 @@ export default function Home() {
         <div className="footer-inner">
           <div className="brand footer-brand"><span className="brand-mark" aria-hidden="true">?</span><span><strong>É Golpe?</strong><small>Uma iniciativa Serviços IA</small></span></div>
           <p>Ferramenta automatizada de apoio à decisão. Em caso de dúvida, não clique, não pague e procure a instituição por seus canais oficiais.</p>
-          <a href="https://ia-contra-fraude.fly.dev/docs" target="_blank" rel="noreferrer">Documentação da API</a>
+          <a href="https://api-fraude.servicos.ia.br/docs" target="_blank" rel="noreferrer">Documentação da API</a>
         </div>
       </footer>
 

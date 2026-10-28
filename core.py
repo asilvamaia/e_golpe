@@ -16,7 +16,7 @@ import asyncio
 import redis
 import hashlib
 from pyhibp import pwnedpasswords
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -109,7 +109,7 @@ REGRAS CRÍTICAS DE SAÍDA - LEIA COM ATENÇÃO:
 """
 
 CLIENTE_IA = None
-MODELO_NOME = 'gemma-4-31b-it'
+MODELO_NOME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 def limpar_resposta_ia(texto: str) -> str:
     if not texto:
@@ -132,10 +132,10 @@ def extrair_veredito_e_score(texto: str):
         return {"veredito": "DESCONHECIDO", "score": 50, "nivel": "info", "icone": "ℹ️", "veredito_original": "DESCONHECIDO"}
     
     # Procura veredito
-    ver_match = re.search(r'\*\*Veredito:?\*\*\s*(\[?.*?\]?)', texto, re.I)
+    ver_match = re.search(r'\*\*Veredito:?\*\*\s*([^\n\r]+)', texto, re.I)
     raw_ver = "ANÁLISE"
     if ver_match:
-        raw_ver = ver_match.group(1).replace('[', '').replace(']', '').strip().upper()
+        raw_ver = ver_match.group(1).replace('[', '').replace(']', '').replace('*', '').strip().upper()
         raw_ver = re.sub(r':\w+', '', raw_ver).strip()
     
     # Procura Score
@@ -148,7 +148,11 @@ def extrair_veredito_e_score(texto: str):
             score_val = 50
             
     # Classificação
-    if "SEGURO" in raw_ver or "CONFIÁVEL" in raw_ver or score_val >= 80:
+    if "OFFLINE" in raw_ver:
+        veredito_final = "SITE OFFLINE"
+        nivel = "warning"
+        icone = "⚠️"
+    elif "SEGURO" in raw_ver or "CONFIÁVEL" in raw_ver or score_val >= 80:
         veredito_final = "SEGURO"
         nivel = "safe"
         icone = "✅"
@@ -198,6 +202,13 @@ def carregar_listas_seguranca():
 
 def checar_dominio_whitelist(domain_clean):
     if not domain_clean: return False
+    
+    # 1. Verifica lista oficial padrão embutida
+    for safe in WHITELIST_DEFAULT:
+        if domain_clean == safe or domain_clean.endswith("." + safe):
+            return True
+
+    # 2. Verifica no banco de dados
     db = SessionLocal()
     try:
         # Busca exata indexada primeiro
@@ -224,8 +235,12 @@ def checar_dominio_blacklist(domain_clean):
             return True
         # Verifica domínios pais (ex: se "sub.bad.com" for verificado e "bad.com" estiver na blacklist)
         parts = domain_clean.split('.')
-        for i in range(len(parts) - 1):
+        # Apenas verificar domínios pais se tiver ao menos 3 partes (ex: sub.dominio.com)
+        # e garantir que não tente buscar apenas o TLD (ex: "com", "br", "com.br")
+        for i in range(1, len(parts) - 1):
             parent_domain = '.'.join(parts[i:])
+            if parent_domain in ("com.br", "net.br", "org.br", "gov.br", "edu.br", "com", "net", "org"):
+                continue
             match = db.query(DomainList).filter(DomainList.domain == parent_domain, DomainList.list_type == 'blacklist').first()
             if match:
                 return True
@@ -331,12 +346,37 @@ def checar_cache_analise(input_str, max_horas=24):
 
 def desencurtar_link(url):
     if not url.startswith("http"): url = "http://" + url
+    
+    # Proteção SSRF: Valida o endereço inicial antes de efetuar requisições
+    seguro_ini, _, url_segura = validar_seguranca_url(url)
+    if not seguro_ini:
+        return url, False
+        
     try:
-        resp = requests.head(url, allow_redirects=True, timeout=5)
-        url_final = resp.url
-        if limpar_dominio(url) != limpar_dominio(url_final): return url_final, True
-        return url_final, False
-    except: return url, False
+        url_atual = url_segura
+        foi_redirecionado = False
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        # Segue redirecionamentos manualmente verificando a cada salto
+        for _ in range(5):
+            resp = requests.head(url_atual, allow_redirects=False, timeout=4, headers=headers)
+            if resp.is_redirect or resp.is_permanent_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get('location')
+                if not location: break
+                proxima = urljoin(url_atual, location)
+                seguro_prox, _, proxima_val = validar_seguranca_url(proxima)
+                if not seguro_prox:
+                    # Bloqueia redirecionamento para IPs privados ou redes internas
+                    break
+                url_atual = proxima_val
+                foi_redirecionado = True
+            else:
+                break
+
+        if foi_redirecionado and limpar_dominio(url) != limpar_dominio(url_atual):
+            return url_atual, True
+        return url_atual, foi_redirecionado
+    except:
+        return url, False
 
 def normalizar_url_db(url):
     url_limpa = url.lower().strip()
@@ -348,6 +388,12 @@ def normalizar_url_db(url):
 
 def validar_seguranca_url(url):
     try:
+        if not url: return False, "Endereço inválido.", url
+        
+        # Se for apenas domínio ou URL sem esquema (ex: google.com), normaliza para http://
+        if "://" not in url:
+            url = "http://" + url
+            
         parsed = urlparse(url)
         if parsed.scheme not in ('http', 'https'): return False, "Protocolo inválido.", url
         hostname = parsed.hostname
@@ -412,11 +458,35 @@ def checar_idade_dominio(url):
 async def baixar_conteudo_seguro(url):
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     try:
+        seguro_ini, _, url_segura = validar_seguranca_url(url)
+        if not seguro_ini:
+            return None, "Endereço bloqueado por segurança (Rede Interna/SSRF)"
+
         async with httpx.AsyncClient(verify=False) as client:
-            response = await client.get(url, headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True)
-            # Lê apenas os x primeiros bytes e decodifica para evitar travar a ram
-            content = response.content[:MAX_CONTENT_SIZE + 1].decode('utf-8', errors='ignore')
-            return content, str(response.url)
+            url_atual = url_segura
+            final_content = None
+            final_url = url_segura
+
+            for _ in range(5):
+                response = await client.get(url_atual, headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=False)
+                if response.is_redirect:
+                    location = response.headers.get('location')
+                    if not location: break
+                    proxima = urljoin(url_atual, location)
+                    seguro_prox, _, proxima_val = validar_seguranca_url(proxima)
+                    if not seguro_prox:
+                        return None, "Redirecionamento bloqueado por segurança (Rede Interna/SSRF)"
+                    url_atual = proxima_val
+                else:
+                    final_content = response.content[:MAX_CONTENT_SIZE + 1].decode('utf-8', errors='ignore')
+                    final_url = str(response.url)
+                    break
+
+            if final_content is None:
+                final_content = response.content[:MAX_CONTENT_SIZE + 1].decode('utf-8', errors='ignore')
+                final_url = str(response.url)
+
+            return final_content, final_url
     except Exception as e: return None, str(e)
 
 async def analisar_conteudo_site(url):
@@ -607,12 +677,24 @@ def calcular_score_risco(dados, domain_clean):
         score -= 100
         fatores.append("Sistema de Segurança: Domínio identificado em lista de ameaças ativas (-100)")
 
-    if "Limpo" not in dados.get('google', 'Limpo'): score -= 100; fatores.append("Google Safe Browsing: Detectado como Perigoso (-100)")
-    if "DETECTADO" in dados.get('phishtank', ''): score -= 100; fatores.append("Base de Phishing: URL CONFIRMADA COMO GOLPE (-100)")
-    if "MALICIOSO" in dados.get('urlscan', ''): score -= 100; fatores.append("URLScan.io: Detectado como MALICIOSO (-100)")
+    google_res = dados.get('google', '')
+    if "Perigoso" in google_res or "DETECTADO" in google_res:
+        score -= 100
+        fatores.append("Google Safe Browsing: Detectado como Perigoso (-100)")
+        
+    if "DETECTADO" in dados.get('phishtank', ''):
+        score -= 100
+        fatores.append("Base de Phishing: URL CONFIRMADA COMO GOLPE (-100)")
+        
+    if "MALICIOSO" in dados.get('urlscan', ''):
+        score -= 100
+        fatores.append("URLScan.io: Detectado como MALICIOSO (-100)")
     
     # Lógica atualizada para VirusTotal
-    if "Sem Detecções" not in dados.get('vt', 'Sem Detecções'): score -= 50; fatores.append("VirusTotal: Alertas de antivírus encontrados (-50)")
+    vt_res = dados.get('vt', '')
+    if "DETECTADO" in vt_res or "Suspeito" in vt_res:
+        score -= 50
+        fatores.append("VirusTotal: Alertas de antivírus encontrados (-50)")
     
     if dados.get('typosquatting', 'Não') != "Não": score -= 60; fatores.append("Nome do site imita uma marca famosa (-60)")
     
@@ -809,24 +891,35 @@ async def analisar_com_ia(url, dados_completos, origem="streamlit", metadados=No
     except Exception as e:
         registrar_log(f"Erro IA URL: {e}", "ERRO")
         
-        # FALLBACK PARA QUANDO A IA FALHAR/BLOQUEAR
-        motivo_fallback = "Conteúdo bloqueado pela IA ou erro de conexão."
-        if cat_sensivel: motivo_fallback = f"Conteúdo sensível detectado: {cat_sensivel}"
-        
+        # FALLBACK INTELIGENTE QUANDO A IA FALHAR/BLOQUEAR
+        if score <= 40 or (cat_sensivel and "GOLPE" in cat_sensivel):
+            veredito_tag = ":red[**GOLPE**]"
+            motivo_detalhe = msg_sensivel or "Identificamos forte probabilidade de fraude ou clonagem de marca."
+            recomendacao = "NÃO insira nenhum dado pessoal, número de cartão ou realize pagamentos/Pix neste site. Feche a página imediatamente."
+        elif score < 75:
+            veredito_tag = ":orange[**ALERTA**]"
+            motivo_detalhe = msg_sensivel or "O site apresenta sinais de atenção ou criação recente."
+            recomendacao = "Tenha cautela redobrada e consulte a empresa envolvida somente por seus canais oficiais."
+        else:
+            veredito_tag = ":green[**SEGURO**]"
+            motivo_detalhe = "Os sinais técnicos apontam para um domínio confiável."
+            recomendacao = "Navegue normalmente observando as precauções habituais de segurança."
+
         fallback_msg = f"""
-        **Veredito:** :orange[**ALERTA (SISTEMA)**]
+        **Veredito:** {veredito_tag}
 
         🛡️ **Nível de Segurança:** {score}/100
 
         **Análise:**
-        A Inteligência Artificial não pôde processar o conteúdo detalhado deste site ({motivo_fallback}).
-        
-        **Baseado na análise técnica:**
+        {motivo_detalhe}
+
+        **Sinais técnicos identificados:**
         - Domínio: {domain_clean}
-        - Idade: {dados_completos.get('idade')}
-        - SSL: {dados_completos.get('ssl')}
+        - Idade do site: {dados_completos.get('idade', 'Não identificada')}
+        - Certificado SSL: {dados_completos.get('ssl', 'Não identificado')}
         
-        **Recomendação:** Tenha cautela extrema.
+        **Ação recomendada:**
+        {recomendacao}
         """
         salvar_no_dataset(dados_completos, fallback_msg, metadados)
         return fallback_msg
@@ -886,7 +979,30 @@ def analisar_texto_ia(texto, origem="streamlit", metadados=None):
         texto_final = limpar_resposta_ia(resp.text)
         salvar_no_dataset({"input": texto_seguro}, texto_final, metadados)
         return texto_final
-    except Exception as e: return f"Erro IA: {e}"
+    except Exception as e:
+        registrar_log(f"Erro IA Texto: {e}", "ERRO")
+        if cat_sensivel:
+            veredito_tag = ":red[**GOLPE**]" if "GOLPE" in cat_sensivel else ":orange[**ALERTA**]"
+            motivo_detalhe = f"Detectado padrão suspeito: {cat_sensivel}."
+            score_fall = 20 if "GOLPE" in cat_sensivel else 40
+            recomendacao = "Não responda, não compartilhe códigos ou senhas e não realize pagamentos ou transferências via Pix."
+        else:
+            veredito_tag = ":orange[**ALERTA**]"
+            motivo_detalhe = "Mensagem com padrões não usuais que requerem atenção."
+            score_fall = 50
+            recomendacao = "Verifique a autenticidade diretamente com a instituição ou pessoa mencionada por canais oficiais."
+
+        fallback_msg = f"""**Veredito:** {veredito_tag}
+
+🛡️ **Nível de Segurança:** {score_fall}/100
+
+**Análise:**
+{motivo_detalhe}
+
+**Ação recomendada:**
+{recomendacao}"""
+        salvar_no_dataset({"input": texto_seguro}, fallback_msg, metadados)
+        return fallback_msg
 
 # --- 8. INTEGRAÇÃO HAVE I BEEN PWNED ---
 

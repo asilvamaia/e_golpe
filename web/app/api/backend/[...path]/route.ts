@@ -42,6 +42,12 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       signal: AbortSignal.timeout(58_000),
     });
     const responseType = response.headers.get("content-type") ?? "application/json";
+    if (!response.ok && !responseType.includes("application/json")) {
+      return NextResponse.json(
+        { detail: "Serviço de análise temporariamente indisponível. Tente novamente em instantes." },
+        { status: response.status >= 500 ? response.status : 502 },
+      );
+    }
     return new NextResponse(response.body, {
       status: response.status,
       headers: { "content-type": responseType, "cache-control": "no-store" },
