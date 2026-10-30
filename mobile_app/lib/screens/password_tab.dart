@@ -93,7 +93,7 @@ class _PasswordTabState extends State<PasswordTab> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.iosBlue.withOpacity(0.12),
+                      color: AppTheme.iosBlue.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.key, color: AppTheme.iosBlue, size: 28),
@@ -186,7 +186,7 @@ class _PasswordTabState extends State<PasswordTab> {
               decoration: BoxDecoration(
                 color: isHc
                     ? AppTheme.hcBackground
-                    : (isDark ? Colors.black26 : const Color(0xFFE5E5EA).withOpacity(0.5)),
+                    : (isDark ? Colors.black26 : const Color(0xFFE5E5EA).withValues(alpha: 0.5)),
                 borderRadius: BorderRadius.circular(14),
                 border: isHc ? Border.all(color: AppTheme.hcYellow) : null,
               ),
@@ -235,7 +235,7 @@ class _PasswordTabState extends State<PasswordTab> {
       decoration: BoxDecoration(
         color: isHc
             ? AppTheme.hcBackground
-            : (isDark ? color.withOpacity(0.15) : color.withOpacity(0.08)),
+            : (isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08)),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: color,

@@ -9,8 +9,8 @@ A interface foi pensada para pessoas com diferentes níveis de familiaridade com
 ## Acesso
 
 - Site: [fraude.servicos.ia.br](https://fraude.servicos.ia.br)
-- API: [ia-contra-fraude.fly.dev](https://ia-contra-fraude.fly.dev)
-- Documentação interativa da API: [ia-contra-fraude.fly.dev/docs](https://ia-contra-fraude.fly.dev/docs)
+- API: [api-fraude.servicos.ia.br](https://api-fraude.servicos.ia.br)
+- Documentação interativa da API: [api-fraude.servicos.ia.br/docs](https://api-fraude.servicos.ia.br/docs)
 
 ## Funcionalidades
 
@@ -22,20 +22,18 @@ A interface foi pensada para pessoas com diferentes níveis de familiaridade com
 - Cache de análises para respostas mais rápidas
 - Coleta de feedback para melhoria contínua
 - Interface responsiva e acessível
-- Integrações com aplicativo Flutter, bot do Telegram e extensão de navegador
+- Integrações com bot do Telegram e extensão de navegador
 
 ## Arquitetura
 
 | Componente | Tecnologia | Função |
 | --- | --- | --- |
-| Frontend web | Next.js 16, React 19 e TypeScript | Interface pública e proxy seguro para a API |
+| Frontend web | Next.js 16, React 19 e TypeScript | Interface pública oficial e proxy seguro para a API |
 | API | FastAPI e Python | Validação, análise e integração entre serviços |
-| Motor de análise | Python e Google Gemini | Combinação de regras, fontes externas e IA |
-| Interface legada | Streamlit | Painel mantido no backend durante a transição |
-| Persistência | SQLite ou PostgreSQL | Histórico, usuários, dataset e feedback |
+| Motor de análise | Python e Google Gemini 2.5 Flash | Combinação de regras, fontes externas e IA |
+| Persistência | PostgreSQL (Shardcloud) | Histórico, usuários, dataset e feedback |
 | Cache | Redis, quando configurado | Reutilização de resultados |
-| Infraestrutura | Vercel, Fly.io, Docker e Nginx | Hospedagem e proxy reverso |
-| App | Flutter | Cliente para Android, iOS e outras plataformas |
+| Infraestrutura | Shardcloud, Docker e Nginx | Hospedagem de alta performance e proxy reverso |
 | Extensão | Manifest V3 | Verificação da página aberta no navegador |
 | Bot | Telegram | Análise de links, mensagens, imagens e PDFs pelo chat |
 

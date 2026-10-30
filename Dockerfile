@@ -17,10 +17,10 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Permissão de execução para o script de inicialização unificado
-RUN chmod +x start.sh
+RUN chmod +x /app/start.sh
 
-# Expõe a porta do Nginx
-EXPOSE 8080
+# Expõe as portas do Nginx
+EXPOSE 80 8080
 
 # Comando para iniciar todos os serviços unificados (FastAPI + Streamlit + Telegram Bot + Nginx)
-CMD ["bash", "start.sh"]
+CMD ["bash", "/app/start.sh"]

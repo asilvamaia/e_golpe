@@ -41,7 +41,7 @@ class GuideTab extends StatelessWidget {
                   : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isHc ? AppTheme.hcYellow : AppTheme.dangerRed.withOpacity(0.5),
+                color: isHc ? AppTheme.hcYellow : AppTheme.dangerRed.withValues(alpha: 0.5),
                 width: isHc ? 2.5 : 1.5,
               ),
             ),
@@ -142,7 +142,7 @@ class GuideTab extends StatelessWidget {
           tip.category,
           style: TextStyle(
             fontSize: 12,
-            color: isHc ? AppTheme.hcYellow.withOpacity(0.8) : AppTheme.iosBlue,
+            color: isHc ? AppTheme.hcYellow.withValues(alpha: 0.8) : AppTheme.iosBlue,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -226,7 +226,7 @@ class GuideTab extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? Colors.black38 : const Color(0xFFF2F2F7),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

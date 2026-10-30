@@ -1,0 +1,6 @@
+DISPLAY_NAME=egolpe-backend
+MAIN=start.sh
+CUSTOM_COMMAND=bash start.sh
+MEMORY=512
+SUBDOMAIN=egolpe-api
+WORKSPACE_ID=b1aedd57-0145-4fb3-b440-9b2f0fd4ceb1

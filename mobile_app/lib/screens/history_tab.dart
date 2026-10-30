@@ -175,7 +175,7 @@ class _HistoryTabState extends State<HistoryTab> {
                           child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           leading: CircleAvatar(
-                            backgroundColor: color.withOpacity(0.15),
+                            backgroundColor: color.withValues(alpha: 0.15),
                             child: Text(item.result.icon, style: const TextStyle(fontSize: 20)),
                           ),
                           title: Text(
@@ -197,7 +197,7 @@ class _HistoryTabState extends State<HistoryTab> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: color.withOpacity(0.15),
+                                      color: color.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(

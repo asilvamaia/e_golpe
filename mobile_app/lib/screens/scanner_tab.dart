@@ -258,7 +258,7 @@ class _ScannerTabState extends State<ScannerTab> with SingleTickerProviderStateM
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppTheme.iosBlue.withOpacity(0.15),
+                color: AppTheme.iosBlue.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
@@ -604,7 +604,7 @@ class _ScannerTabState extends State<ScannerTab> with SingleTickerProviderStateM
       decoration: BoxDecoration(
         color: isHc
             ? AppTheme.hcBackground
-            : (isDark ? Colors.black26 : const Color(0xFFE5E5EA).withOpacity(0.5)),
+            : (isDark ? Colors.black26 : const Color(0xFFE5E5EA).withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(12),
         border: isHc ? Border.all(color: AppTheme.hcYellow) : null,
       ),

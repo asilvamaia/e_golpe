@@ -77,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7)),
         indicatorColor: isHc
             ? AppTheme.hcYellow
-            : AppTheme.iosBlue.withOpacity(0.2),
+            : AppTheme.iosBlue.withValues(alpha: 0.2),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.shield_outlined),

@@ -1,0 +1,8 @@
+DISPLAY_NAME=E-Golpe Web
+MAIN=node_modules/next/dist/bin/next
+LANGUAGE=node
+VERSION=24.15.0
+MEMORY=512
+SUBDOMAIN=egolpe
+WORKSPACE_ID=b1aedd57-0145-4fb3-b440-9b2f0fd4ceb1
+CUSTOM_COMMAND=npm start

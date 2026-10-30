@@ -41,7 +41,7 @@ class VerdictCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isHighContrast
             ? AppTheme.hcBackground
-            : (isDark ? color.withOpacity(0.15) : color.withOpacity(0.08)),
+            : (isDark ? color.withValues(alpha: 0.15) : color.withValues(alpha: 0.08)),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: color,

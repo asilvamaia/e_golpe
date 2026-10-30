@@ -11,21 +11,35 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Ignorar banco de dados local gigante (o Fly usa o volume /data)
+# Ignorar frontend Web (Next.js) e Mobile App (Flutter)
+web/
+mobile_app/
+browser_extension/
+scratch/
+
+# Ignorar bancos de dados locais e backups
 guardian.db
 *.db
 *.sqlite3
+blacklist.txt
+dataset_treino*.json
+feedbacks.json
+phishtank_data.json
 
 # Ignorar backups e arquivos compactados
 *.rar
 *.tar
 *.zip
 *.gz
+*.ipa
 projeto_backup.tar
 guardian-bot_ofc.rar
+egolpe-ios-altstore-ipa.zip
+egolpe-ios-altstore.ipa
 
 # Outros arquivos desnecessários
 .env
 migration_log.txt
 version.txt
-browser_extension/
+sistema.log
+clean_cache.py
