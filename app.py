@@ -542,10 +542,10 @@ if st.session_state['modo_admin']:
                     with c_btn2:
                         if st.button("🧠 Preparar Retreinamento", use_container_width=True, type="primary"):
                             with st.spinner("Compilando feedbacks negativos para a IA..."):
-                                import subprocess
+                                import subprocess # nosec
                                 import sys
                                 try:
-                                    resultado = subprocess.run([sys.executable, "scripts/preparar_finetune.py"], capture_output=True, text=True)
+                                    resultado = subprocess.run([sys.executable, "scripts/preparar_finetune.py"], capture_output=True, text=True) # nosec
                                     if resultado.returncode == 0:
                                         st.success("Dataset de retreinamento gerado com sucesso!")
                                         st.code(resultado.stdout)

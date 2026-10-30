@@ -462,7 +462,7 @@ async def baixar_conteudo_seguro(url):
         if not seguro_ini:
             return None, "Endereço bloqueado por segurança (Rede Interna/SSRF)"
 
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(verify=True) as client:
             url_atual = url_segura
             final_content = None
             final_url = url_segura

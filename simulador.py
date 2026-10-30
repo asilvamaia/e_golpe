@@ -195,7 +195,7 @@ def checar_google_safebrowsing(url):
     try:
         api_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SB_KEY}"
         payload = {"client": {"clientId": "gb", "clientVersion": "1"}, "threatInfo": {"threatTypes": ["MALWARE", "SOCIAL_ENGINEERING"], "platformTypes": ["ANY_PLATFORM"], "threatEntryTypes": ["URL"], "threatEntries": [{"url": url}]}}
-        res = requests.post(api_url, json=payload).json()
+        res = requests.post(api_url, json=payload, timeout=10).json()
         return "PERIGOSO (Google)" if "matches" in res and res["matches"] else "Limpo"
     except: return "Erro"
 
@@ -203,7 +203,7 @@ def checar_virustotal(url):
     if not VIRUSTOTAL_KEY: return "N/A"
     try:
         uid = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-        res = requests.get(f"https://www.virustotal.com/api/v3/urls/{uid}", headers={"x-apikey": VIRUSTOTAL_KEY})
+        res = requests.get(f"https://www.virustotal.com/api/v3/urls/{uid}", headers={"x-apikey": VIRUSTOTAL_KEY}, timeout=10)
         if res.status_code == 200:
             st = res.json()['data']['attributes']['last_analysis_stats']
             return f"Malicious: {st.get('malicious',0)}"
@@ -268,7 +268,7 @@ def analisar_com_ia(url, dados_completos):
 # --- LOOP PRINCIPAL ---
 
 def main():
-    os.system('cls' if os.name == 'nt' else 'clear') 
+    os.system('cls' if os.name == 'nt' else 'clear') # nosec
     print(f"{Fore.CYAN}=== VERIFICADOR DE FRAUDE ==={Style.RESET_ALL}")
     
     if not MODELO_IA: print(f"{Fore.YELLOW}⚠️  IA Offline.{Style.RESET_ALL}")
